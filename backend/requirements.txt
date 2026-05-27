@@ -13,3 +13,5 @@ pytesseract
 pdf2image
 pillow
 httpx
+pytest
+pytest-asyncio

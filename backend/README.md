@@ -64,3 +64,9 @@
 - `GET /api/documents`
 - `GET /api/documents/{document_id}`
 - `POST /api/ocr`
+
+## Run tests
+
+```bash
+pytest
+```

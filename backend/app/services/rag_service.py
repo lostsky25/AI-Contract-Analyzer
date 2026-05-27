@@ -1,35 +1,35 @@
 from pathlib import Path
-
-import chromadb
-from chromadb.api import ClientAPI
-from chromadb.api.models.Collection import Collection
-from sentence_transformers import SentenceTransformer
+from typing import Any
 
 from app.config import settings
 
 COLLECTION_NAME = "contract_chunks"
 
-_embedding_model: SentenceTransformer | None = None
-_chroma_client: ClientAPI | None = None
+_embedding_model: Any | None = None
+_chroma_client: Any | None = None
 
 
-def get_embedding_model() -> SentenceTransformer:
+def get_embedding_model() -> Any:
     global _embedding_model
     if _embedding_model is None:
+        from sentence_transformers import SentenceTransformer
+
         _embedding_model = SentenceTransformer(settings.embedding_model_name)
     return _embedding_model
 
 
-def get_chroma_client() -> ClientAPI:
+def get_chroma_client() -> Any:
     global _chroma_client
     if _chroma_client is None:
+        import chromadb
+
         chroma_path = Path(settings.chroma_db_dir)
         chroma_path.mkdir(parents=True, exist_ok=True)
         _chroma_client = chromadb.PersistentClient(path=str(chroma_path))
     return _chroma_client
 
 
-def get_collection() -> Collection:
+def get_collection() -> Any:
     client = get_chroma_client()
     return client.get_or_create_collection(name=COLLECTION_NAME)
 

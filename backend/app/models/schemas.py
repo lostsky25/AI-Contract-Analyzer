@@ -30,4 +30,17 @@ class ProcessResponse(BaseModel):
     status: str
     text_preview: str
     text_length: int
+    chunks_count: int
     used_ocr: bool
+
+
+class ChunkRequest(BaseModel):
+    text: str
+    chunk_size: int = 1200
+    overlap: int = 200
+
+
+class ChunkResponse(BaseModel):
+    status: str
+    chunks_count: int
+    chunks: list[str]

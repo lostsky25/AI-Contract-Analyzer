@@ -3,12 +3,15 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from app.models.schemas import (
+    ChunkRequest,
+    ChunkResponse,
     ExtractRequest,
     ExtractResponse,
     ProcessRequest,
     ProcessResponse,
     UploadResponse,
 )
+from app.services.chunking_service import chunk_text
 from app.services.document_processor import process_document
 from app.services.file_service import save_uploaded_file
 from app.services.text_extractor import extract_text
@@ -88,3 +91,24 @@ async def process_uploaded_document(payload: ProcessRequest) -> ProcessResponse:
         ) from exc
 
     return ProcessResponse(**result)
+
+
+@router.post("/chunk", response_model=ChunkResponse)
+async def chunk_document_text(payload: ChunkRequest) -> ChunkResponse:
+    try:
+        chunks = chunk_text(
+            text=payload.text,
+            chunk_size=payload.chunk_size,
+            overlap=payload.overlap,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return ChunkResponse(
+        status="chunked",
+        chunks_count=len(chunks),
+        chunks=chunks,
+    )

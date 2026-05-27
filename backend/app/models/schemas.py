@@ -6,3 +6,15 @@ class UploadResponse(BaseModel):
     filename: str
     status: str
     file_path: str
+
+
+class ExtractRequest(BaseModel):
+    document_id: str
+    file_path: str
+
+
+class ExtractResponse(BaseModel):
+    document_id: str
+    status: str
+    text_preview: str
+    text_length: int

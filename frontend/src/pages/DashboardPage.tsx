@@ -96,7 +96,7 @@ export function DashboardPage() {
             className="text-area"
             value={model.analysisInput}
             onChange={(event) => model.setAnalysisInput(event.target.value)}
-            placeholder="После process здесь появится text_preview."
+            placeholder="После process здесь появится полный текст документа."
           />
         </article>
 

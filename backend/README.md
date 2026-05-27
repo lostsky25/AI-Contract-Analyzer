@@ -21,15 +21,17 @@ From the project root:
    docker compose up --build
    ```
 
-4. Open API:
+3. Open services:
 
    - API: http://localhost:8000
    - Swagger: http://localhost:8000/docs
+   - Frontend: http://localhost:5173
 
 Services:
 
 - `api` — FastAPI backend (port `8000`)
 - `db` — PostgreSQL 16 (port `5432`)
+- `frontend` — React + Vite (port `5173`)
 
 Data is persisted in Docker volumes and local folders:
 

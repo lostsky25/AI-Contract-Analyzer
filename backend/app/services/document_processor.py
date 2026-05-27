@@ -29,6 +29,7 @@ def process_document(document_id: str, file_path: str) -> dict:
         "document_id": document_id,
         "status": status,
         "text_preview": cleaned_text[:1000],
+        "full_text": cleaned_text,
         "text_length": text_length,
         "chunks_count": len(chunks),
         "chunks": chunks,

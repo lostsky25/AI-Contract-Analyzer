@@ -10,17 +10,17 @@ SYSTEM_PROMPT = (
 )
 
 USER_PROMPT_TEMPLATE = """Analyze this contract context and return JSON with:
-{
+{{
   "summary": "short contract summary",
   "risks": [
-    {
+    {{
       "type": "risk type",
       "severity": "low|medium|high|critical",
       "description": "risk description",
       "recommendation": "what to check or improve"
-    }
+    }}
   ]
-}
+}}
 
 The response must be valid JSON only.
 

@@ -143,7 +143,7 @@ export function useContractAnalysis() {
         file_path: uploadResult.file_path
       });
       setProcessResult(result);
-      setAnalysisInput(result.text_preview ?? "");
+      setAnalysisInput(result.full_text ?? result.text_preview ?? "");
       setProcessState("success");
       await loadDocuments();
     } catch (errorValue) {

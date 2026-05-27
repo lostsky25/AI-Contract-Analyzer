@@ -14,6 +14,7 @@ export type ProcessResponse = {
   document_id: string;
   status: string;
   text_preview: string;
+  full_text: string;
   text_length: number;
   chunks_count: number;
   used_ocr: boolean;

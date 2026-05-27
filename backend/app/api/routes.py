@@ -164,6 +164,7 @@ async def process_uploaded_document(
         document_id=result["document_id"],
         status=result["status"],
         text_preview=result["text_preview"],
+        full_text=result["full_text"],
         text_length=result["text_length"],
         chunks_count=saved_count,
         used_ocr=result["used_ocr"],
@@ -244,6 +245,11 @@ async def analyze_document_text(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to run AI analysis.",
         ) from exc
 
     if payload.document_id:

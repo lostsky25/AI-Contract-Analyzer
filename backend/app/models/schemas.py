@@ -31,6 +31,7 @@ class ProcessResponse(BaseModel):
     document_id: str
     status: str
     text_preview: str
+    full_text: str
     text_length: int
     chunks_count: int
     used_ocr: bool

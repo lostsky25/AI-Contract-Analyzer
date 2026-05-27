@@ -147,6 +147,13 @@ activemq-data/
 # SageMath parsed files
 *.sage.py
 
+# Backend runtime data
+backend/chroma_db/
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/*.db
+backend/test_data/
+
 # Environments
 .env
 .envrc

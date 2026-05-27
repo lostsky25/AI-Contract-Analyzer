@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic-settings
+pymupdf
+python-docx
+sqlalchemy
+psycopg2-binary
+alembic
+chromadb
+sentence-transformers
+pytesseract
+pdf2image
+pillow
+httpx
+pytest
+pytest-asyncio

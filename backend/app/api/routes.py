@@ -15,6 +15,8 @@ from app.models.schemas import (
     IndexRequest,
     IndexResponse,
     DocumentResponse,
+    OcrRequest,
+    OcrResponse,
     ProcessRequest,
     ProcessResponse,
     RetrieveRequest,
@@ -33,6 +35,7 @@ from app.services.document_repository import (
 )
 from app.services.rag_service import save_chunks, semantic_retrieval
 from app.services.text_extractor import extract_text
+from app.services.ocr_service import run_ocr
 
 router = APIRouter()
 
@@ -118,6 +121,11 @@ async def process_uploaded_document(
 
     try:
         result = process_document(payload.document_id, payload.file_path)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -264,6 +272,42 @@ async def retrieve_chunks(payload: RetrieveRequest) -> RetrieveResponse:
         ) from exc
 
     return RetrieveResponse(status="retrieved", results=results)
+
+
+@router.post("/ocr", response_model=OcrResponse)
+async def run_document_ocr(payload: OcrRequest) -> OcrResponse:
+    target_file = Path(payload.file_path)
+    if not target_file.exists() or not target_file.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found.",
+        )
+
+    try:
+        text = run_ocr(payload.file_path)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to run OCR.",
+        ) from exc
+
+    text_length = len(text)
+    return OcrResponse(
+        document_id=payload.document_id,
+        status="ocr_completed" if text_length > 0 else "empty_text",
+        text_preview=text[:1000],
+        text_length=text_length,
+    )
 
 
 @router.get("/documents/{document_id}", response_model=DocumentResponse)

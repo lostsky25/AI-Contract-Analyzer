@@ -87,3 +87,15 @@ class RetrieveRequest(BaseModel):
 class RetrieveResponse(BaseModel):
     status: str
     results: list[dict]
+
+
+class OcrRequest(BaseModel):
+    document_id: str
+    file_path: str
+
+
+class OcrResponse(BaseModel):
+    document_id: str
+    status: str
+    text_preview: str
+    text_length: int

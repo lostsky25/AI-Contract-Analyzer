@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql://postgres:postgres@localhost:5432/ai_contract_analyzer"
     )
+    tesseract_cmd: str | None = None
+    poppler_path: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

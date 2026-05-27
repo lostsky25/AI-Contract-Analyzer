@@ -46,9 +46,21 @@
    uvicorn app.main:app --reload
    ```
 
+## Windows OCR setup
+
+1. Install Tesseract OCR.
+2. Install Poppler for Windows.
+3. Set paths in `.env`:
+
+   ```env
+   TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
+   POPPLER_PATH=C:\poppler\Library\bin
+   ```
+
 ## Available endpoints
 
 - `GET /api/health`
 - `POST /api/upload` (multipart/form-data, field name: `file`)
 - `GET /api/documents`
 - `GET /api/documents/{document_id}`
+- `POST /api/ocr`

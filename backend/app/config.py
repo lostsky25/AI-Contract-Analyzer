@@ -7,7 +7,8 @@ class Settings(BaseSettings):
     max_file_size_mb: int = 20
     allowed_extensions: list[str] = Field(default_factory=lambda: [".pdf", ".docx"])
     openrouter_api_key: str = ""
-    openrouter_model: str = ""
+    openrouter_model: str = "openai/gpt-4o-mini"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1/chat/completions"
     chroma_db_dir: str = "./chroma_db"
     embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     database_url: str = (

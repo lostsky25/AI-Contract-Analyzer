@@ -50,6 +50,7 @@ class ChunkResponse(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     text: str
+    document_id: str | None = None
 
 
 class AnalyzeResponse(BaseModel):

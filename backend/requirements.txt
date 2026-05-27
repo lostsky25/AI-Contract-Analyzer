@@ -12,3 +12,4 @@ sentence-transformers
 pytesseract
 pdf2image
 pillow
+httpx

@@ -28,6 +28,7 @@ from app.services.document_processor import process_document
 from app.services.file_service import save_uploaded_file
 from app.services.llm_service import analyze_contract
 from app.services.document_repository import (
+    create_analysis_report,
     create_document,
     get_document,
     list_documents,
@@ -191,7 +192,10 @@ async def chunk_document_text(payload: ChunkRequest) -> ChunkResponse:
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
-async def analyze_document_text(payload: AnalyzeRequest) -> AnalyzeResponse:
+async def analyze_document_text(
+    payload: AnalyzeRequest,
+    db: Session = Depends(get_db),
+) -> AnalyzeResponse:
     try:
         chunks = chunk_text(payload.text)
     except ValueError as exc:
@@ -200,8 +204,69 @@ async def analyze_document_text(payload: AnalyzeRequest) -> AnalyzeResponse:
             detail=str(exc),
         ) from exc
 
-    context = "\n\n".join(chunks)
-    report = analyze_contract(context=context)
+    retrieval_query = (
+        "contract risks, obligations, penalties, payment terms, termination conditions"
+    )
+
+    context_chunks: list[str] = chunks[:5]
+    if payload.document_id:
+        try:
+            # Uses deterministic ids with upsert, so repeated indexing is safe.
+            save_chunks(payload.document_id, chunks)
+            retrieved = semantic_retrieval(
+                query=retrieval_query,
+                document_id=payload.document_id,
+                top_k=5,
+            )
+            if retrieved:
+                context_chunks = [str(item.get("text", "")) for item in retrieved]
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to prepare retrieval context.",
+            ) from exc
+
+    context = "\n\n".join([chunk for chunk in context_chunks if chunk])
+    if not context.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No text available for analysis.",
+        )
+
+    try:
+        report = analyze_contract(context=context)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    if payload.document_id:
+        try:
+            existing_document = get_document(db, payload.document_id)
+            if existing_document is not None:
+                create_analysis_report(
+                    db=db,
+                    document_id=payload.document_id,
+                    summary=str(report.get("summary", "")),
+                    risks=list(report.get("risks", [])),
+                )
+                update_document_status(
+                    db=db,
+                    document_id=payload.document_id,
+                    status="analyzed",
+                )
+        except SQLAlchemyError as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to persist analysis report.",
+            ) from exc
 
     return AnalyzeResponse(
         status="analyzed",

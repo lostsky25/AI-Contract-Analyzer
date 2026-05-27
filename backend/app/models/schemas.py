@@ -44,3 +44,13 @@ class ChunkResponse(BaseModel):
     status: str
     chunks_count: int
     chunks: list[str]
+
+
+class AnalyzeRequest(BaseModel):
+    text: str
+
+
+class AnalyzeResponse(BaseModel):
+    status: str
+    summary: str
+    risks: list[dict]

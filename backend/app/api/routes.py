@@ -3,6 +3,8 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from app.models.schemas import (
+    AnalyzeRequest,
+    AnalyzeResponse,
     ChunkRequest,
     ChunkResponse,
     ExtractRequest,
@@ -14,6 +16,7 @@ from app.models.schemas import (
 from app.services.chunking_service import chunk_text
 from app.services.document_processor import process_document
 from app.services.file_service import save_uploaded_file
+from app.services.llm_service import analyze_contract
 from app.services.text_extractor import extract_text
 
 router = APIRouter()
@@ -111,4 +114,24 @@ async def chunk_document_text(payload: ChunkRequest) -> ChunkResponse:
         status="chunked",
         chunks_count=len(chunks),
         chunks=chunks,
+    )
+
+
+@router.post("/analyze", response_model=AnalyzeResponse)
+async def analyze_document_text(payload: AnalyzeRequest) -> AnalyzeResponse:
+    try:
+        chunks = chunk_text(payload.text)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    context = "\n\n".join(chunks)
+    report = analyze_contract(context=context)
+
+    return AnalyzeResponse(
+        status="analyzed",
+        summary=str(report.get("summary", "")),
+        risks=list(report.get("risks", [])),
     )

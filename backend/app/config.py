@@ -1,5 +1,20 @@
-from typing import List
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-UPLOAD_DIR: str = "uploads"
-MAX_FILE_SIZE_MB: int = 20
-ALLOWED_EXTENSIONS: List[str] = [".pdf", ".docx"]
+
+class Settings(BaseSettings):
+    upload_dir: str = "uploads"
+    max_file_size_mb: int = 20
+    allowed_extensions: list[str] = Field(default_factory=lambda: [".pdf", ".docx"])
+    openrouter_api_key: str = ""
+    openrouter_model: str = ""
+    chroma_db_dir: str = "./chroma_db"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
+
+
+settings = Settings()

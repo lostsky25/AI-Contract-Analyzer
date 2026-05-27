@@ -1,0 +1,40 @@
+# AI Contract Analyzer Backend
+
+## Requirements
+
+- Python 3.12
+
+## Run locally
+
+1. Create and activate a virtual environment:
+
+   Windows (PowerShell):
+
+   ```powershell
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   ```
+
+   macOS/Linux:
+
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Run the API:
+
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+
+## Available endpoints
+
+- `GET /api/health`
+- `POST /api/upload` (multipart/form-data, field name: `file`)

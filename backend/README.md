@@ -2,9 +2,50 @@
 
 ## Requirements
 
-- Python 3.12
+- Python 3.12 (for local run)
+- Docker + Docker Compose (recommended)
 
-## Run locally
+## Run with Docker (recommended)
+
+From the project root:
+
+1. Optional: create `.env` in project root for secrets (e.g. OpenRouter):
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Start services:
+
+   ```bash
+   docker compose up --build
+   ```
+
+4. Open API:
+
+   - API: http://localhost:8000
+   - Swagger: http://localhost:8000/docs
+
+Services:
+
+- `api` — FastAPI backend (port `8000`)
+- `db` — PostgreSQL 16 (port `5432`)
+
+Data is persisted in Docker volumes and local folders:
+
+- `backend/uploads/`
+- `backend/chroma_db/`
+- PostgreSQL volume `postgres_data`
+
+Stop:
+
+```bash
+docker compose down
+```
+
+First startup may take several minutes while embedding models are downloaded.
+
+## Run locally (without Docker)
 
 1. Create and activate a virtual environment:
 
@@ -34,11 +75,7 @@
    CREATE DATABASE ai_contract_analyzer;
    ```
 
-4. Set `DATABASE_URL` in `.env`:
-
-   ```env
-   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_contract_analyzer
-   ```
+4. Copy `backend/.env.example` to `backend/.env` and set `DATABASE_URL`.
 
 5. Run the API:
 
@@ -46,27 +83,45 @@
    uvicorn app.main:app --reload
    ```
 
-## Windows OCR setup
+## Windows OCR setup (local only)
 
-1. Install Tesseract OCR.
-2. Install Poppler for Windows.
-3. Set paths in `.env`:
+Inside Docker, Tesseract and Poppler are preinstalled.
 
-   ```env
-   TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
-   POPPLER_PATH=C:\poppler\Library\bin
-   ```
+For local Windows run:
+
+```env
+TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
+POPPLER_PATH=C:\poppler\Library\bin
+```
 
 ## Available endpoints
 
 - `GET /api/health`
 - `POST /api/upload` (multipart/form-data, field name: `file`)
+- `POST /api/extract`
+- `POST /api/process`
+- `POST /api/chunk`
+- `POST /api/index`
+- `POST /api/retrieve`
+- `POST /api/analyze`
+- `POST /api/ocr`
 - `GET /api/documents`
 - `GET /api/documents/{document_id}`
-- `POST /api/ocr`
+
+## Example curl (Docker)
+
+```bash
+curl http://localhost:8000/api/health
+
+curl -X POST http://localhost:8000/api/upload \
+  -F "file=@backend/test_data/sample.docx"
+```
 
 ## Run tests
 
 ```bash
+cd backend
 pytest
 ```
+
+Tests use mocked DB and do not require Docker services.

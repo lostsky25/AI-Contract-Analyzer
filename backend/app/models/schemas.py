@@ -18,3 +18,16 @@ class ExtractResponse(BaseModel):
     status: str
     text_preview: str
     text_length: int
+
+
+class ProcessRequest(BaseModel):
+    document_id: str
+    file_path: str
+
+
+class ProcessResponse(BaseModel):
+    document_id: str
+    status: str
+    text_preview: str
+    text_length: int
+    used_ocr: bool

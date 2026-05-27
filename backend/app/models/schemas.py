@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -54,3 +56,12 @@ class AnalyzeResponse(BaseModel):
     status: str
     summary: str
     risks: list[dict]
+
+
+class DocumentResponse(BaseModel):
+    document_id: str
+    filename: str
+    file_path: str
+    status: str
+    text_length: int | None
+    created_at: datetime

@@ -1,7 +1,10 @@
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
+from app.database import get_db
 from app.models.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -9,6 +12,7 @@ from app.models.schemas import (
     ChunkResponse,
     ExtractRequest,
     ExtractResponse,
+    DocumentResponse,
     ProcessRequest,
     ProcessResponse,
     UploadResponse,
@@ -17,6 +21,7 @@ from app.services.chunking_service import chunk_text
 from app.services.document_processor import process_document
 from app.services.file_service import save_uploaded_file
 from app.services.llm_service import analyze_contract
+from app.services.document_repository import create_document, get_document, list_documents
 from app.services.text_extractor import extract_text
 
 router = APIRouter()
@@ -28,8 +33,26 @@ async def health_check() -> dict[str, str]:
 
 
 @router.post("/upload", response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...)) -> UploadResponse:
+async def upload_file(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> UploadResponse:
     document_id, saved_path = await save_uploaded_file(file)
+    try:
+        create_document(
+            db=db,
+            document_id=document_id,
+            filename=file.filename or "uploaded_file",
+            file_path=saved_path,
+            status="uploaded",
+        )
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save document metadata.",
+        ) from exc
+
     return UploadResponse(
         document_id=document_id,
         filename=file.filename or "uploaded_file",
@@ -135,3 +158,41 @@ async def analyze_document_text(payload: AnalyzeRequest) -> AnalyzeResponse:
         summary=str(report.get("summary", "")),
         risks=list(report.get("risks", [])),
     )
+
+
+@router.get("/documents/{document_id}", response_model=DocumentResponse)
+async def get_document_by_id(
+    document_id: str,
+    db: Session = Depends(get_db),
+) -> DocumentResponse:
+    document = get_document(db, document_id)
+    if document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found.",
+        )
+
+    return DocumentResponse(
+        document_id=document.id,
+        filename=document.filename,
+        file_path=document.file_path,
+        status=document.status,
+        text_length=document.text_length,
+        created_at=document.created_at,
+    )
+
+
+@router.get("/documents", response_model=list[DocumentResponse])
+async def get_documents(db: Session = Depends(get_db)) -> list[DocumentResponse]:
+    documents = list_documents(db)
+    return [
+        DocumentResponse(
+            document_id=document.id,
+            filename=document.filename,
+            file_path=document.file_path,
+            status=document.status,
+            text_length=document.text_length,
+            created_at=document.created_at,
+        )
+        for document in documents
+    ]

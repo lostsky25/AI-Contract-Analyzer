@@ -28,7 +28,19 @@
    pip install -r requirements.txt
    ```
 
-3. Run the API:
+3. Create PostgreSQL database:
+
+   ```sql
+   CREATE DATABASE ai_contract_analyzer;
+   ```
+
+4. Set `DATABASE_URL` in `.env`:
+
+   ```env
+   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_contract_analyzer
+   ```
+
+5. Run the API:
 
    ```bash
    uvicorn app.main:app --reload
@@ -38,3 +50,5 @@
 
 - `GET /api/health`
 - `POST /api/upload` (multipart/form-data, field name: `file`)
+- `GET /api/documents`
+- `GET /api/documents/{document_id}`

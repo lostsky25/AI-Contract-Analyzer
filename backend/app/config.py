@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_model: str = ""
     chroma_db_dir: str = "./chroma_db"
+    database_url: str = (
+        "postgresql://postgres:postgres@localhost:5432/ai_contract_analyzer"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

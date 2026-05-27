@@ -4,3 +4,6 @@ python-multipart
 pydantic-settings
 pymupdf
 python-docx
+sqlalchemy
+psycopg2-binary
+alembic

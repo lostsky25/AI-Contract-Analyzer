@@ -65,3 +65,25 @@ class DocumentResponse(BaseModel):
     status: str
     text_length: int | None
     created_at: datetime
+
+
+class IndexRequest(BaseModel):
+    document_id: str
+    text: str
+
+
+class IndexResponse(BaseModel):
+    document_id: str
+    status: str
+    chunks_count: int
+
+
+class RetrieveRequest(BaseModel):
+    query: str
+    document_id: str | None = None
+    top_k: int = 5
+
+
+class RetrieveResponse(BaseModel):
+    status: str
+    results: list[dict]

@@ -12,16 +12,26 @@ from app.models.schemas import (
     ChunkResponse,
     ExtractRequest,
     ExtractResponse,
+    IndexRequest,
+    IndexResponse,
     DocumentResponse,
     ProcessRequest,
     ProcessResponse,
+    RetrieveRequest,
+    RetrieveResponse,
     UploadResponse,
 )
 from app.services.chunking_service import chunk_text
 from app.services.document_processor import process_document
 from app.services.file_service import save_uploaded_file
 from app.services.llm_service import analyze_contract
-from app.services.document_repository import create_document, get_document, list_documents
+from app.services.document_repository import (
+    create_document,
+    get_document,
+    list_documents,
+    update_document_status,
+)
+from app.services.rag_service import save_chunks, semantic_retrieval
 from app.services.text_extractor import extract_text
 
 router = APIRouter()
@@ -95,7 +105,10 @@ async def extract_document_text(payload: ExtractRequest) -> ExtractResponse:
 
 
 @router.post("/process", response_model=ProcessResponse)
-async def process_uploaded_document(payload: ProcessRequest) -> ProcessResponse:
+async def process_uploaded_document(
+    payload: ProcessRequest,
+    db: Session = Depends(get_db),
+) -> ProcessResponse:
     target_file = Path(payload.file_path)
     if not target_file.exists() or not target_file.is_file():
         raise HTTPException(
@@ -116,7 +129,36 @@ async def process_uploaded_document(payload: ProcessRequest) -> ProcessResponse:
             detail="Failed to process document.",
         ) from exc
 
-    return ProcessResponse(**result)
+    try:
+        saved_count = save_chunks(payload.document_id, result.get("chunks", []))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to index processed chunks.",
+        ) from exc
+
+    try:
+        update_document_status(
+            db=db,
+            document_id=payload.document_id,
+            status="processed",
+            text_length=result["text_length"],
+        )
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update document status.",
+        ) from exc
+
+    return ProcessResponse(
+        document_id=result["document_id"],
+        status=result["status"],
+        text_preview=result["text_preview"],
+        text_length=result["text_length"],
+        chunks_count=saved_count,
+        used_ocr=result["used_ocr"],
+    )
 
 
 @router.post("/chunk", response_model=ChunkResponse)
@@ -158,6 +200,70 @@ async def analyze_document_text(payload: AnalyzeRequest) -> AnalyzeResponse:
         summary=str(report.get("summary", "")),
         risks=list(report.get("risks", [])),
     )
+
+
+@router.post("/index", response_model=IndexResponse)
+async def index_document_text(
+    payload: IndexRequest,
+    db: Session = Depends(get_db),
+) -> IndexResponse:
+    try:
+        chunks = chunk_text(payload.text)
+        saved_count = save_chunks(payload.document_id, chunks)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to index document chunks.",
+        ) from exc
+
+    try:
+        existing_document = get_document(db, payload.document_id)
+        if existing_document is not None:
+            update_document_status(
+                db=db,
+                document_id=payload.document_id,
+                status="indexed",
+            )
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update indexed document status.",
+        ) from exc
+
+    return IndexResponse(
+        document_id=payload.document_id,
+        status="indexed",
+        chunks_count=saved_count,
+    )
+
+
+@router.post("/retrieve", response_model=RetrieveResponse)
+async def retrieve_chunks(payload: RetrieveRequest) -> RetrieveResponse:
+    if payload.top_k <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="top_k must be greater than 0.",
+        )
+
+    try:
+        results = semantic_retrieval(
+            query=payload.query,
+            document_id=payload.document_id,
+            top_k=payload.top_k,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve chunks.",
+        ) from exc
+
+    return RetrieveResponse(status="retrieved", results=results)
 
 
 @router.get("/documents/{document_id}", response_model=DocumentResponse)

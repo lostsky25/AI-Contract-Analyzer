@@ -31,5 +31,6 @@ def process_document(document_id: str, file_path: str) -> dict:
         "text_preview": cleaned_text[:1000],
         "text_length": text_length,
         "chunks_count": len(chunks),
+        "chunks": chunks,
         "used_ocr": used_ocr,
     }

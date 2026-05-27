@@ -12,6 +12,8 @@ if str(BACKEND_ROOT) not in sys.path:
 from app.config import settings
 from app.database import get_db
 from app.main import app
+from app.models.db_models import User
+from app.services.auth_service import get_current_user
 
 
 class DummyDBSession:
@@ -46,7 +48,17 @@ def client() -> Generator[TestClient, None, None]:
     def override_get_db() -> Generator[DummyDBSession, None, None]:
         yield DummyDBSession()
 
+    def override_get_current_user() -> User:
+        return User(
+            id="test-user-id",
+            username="testuser",
+            email="test@example.com",
+            hashed_password="",
+            is_active=True,
+        )
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

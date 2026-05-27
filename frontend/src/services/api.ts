@@ -1,14 +1,19 @@
 import type {
   AnalyzeRequest,
   AnalyzeResponse,
+  AuthResponse,
   DocumentResponse,
   HealthResponse,
+  LoginRequest,
   ProcessRequest,
   ProcessResponse,
+  RegisterRequest,
+  UserResponse,
   UploadResponse
 } from "../types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+const AUTH_TOKEN_KEY = "auth_token";
 
 class ApiError extends Error {
   status?: number;
@@ -41,7 +46,16 @@ function normalizeError(payload: unknown): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, init);
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  const headers = new Headers(init?.headers ?? {});
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers
+  });
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
     try {
@@ -91,7 +105,40 @@ export const apiClient = {
   },
   getDocument(documentId: string) {
     return request<DocumentResponse>(`/documents/${documentId}`);
+  },
+  register(payload: RegisterRequest) {
+    return request<UserResponse>("/auth/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+  },
+  login(payload: LoginRequest) {
+    return request<AuthResponse>("/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+  },
+  getMe() {
+    return request<UserResponse>("/auth/me");
   }
 };
+
+export function saveAuthToken(token: string): void {
+  localStorage.setItem(AUTH_TOKEN_KEY, token);
+}
+
+export function clearAuthToken(): void {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+export function hasAuthToken(): boolean {
+  return Boolean(localStorage.getItem(AUTH_TOKEN_KEY));
+}
 
 export { ApiError };

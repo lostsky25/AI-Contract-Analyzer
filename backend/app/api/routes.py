@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
+    AuthResponse,
     ChunkRequest,
     ChunkResponse,
     ExtractRequest,
@@ -17,16 +18,27 @@ from app.models.schemas import (
     DocumentResponse,
     OcrRequest,
     OcrResponse,
+    LoginRequest,
+    RegisterRequest,
     ProcessRequest,
     ProcessResponse,
     RetrieveRequest,
     RetrieveResponse,
+    UserResponse,
     UploadResponse,
 )
 from app.services.chunking_service import chunk_text
 from app.services.document_processor import process_document
 from app.services.file_service import save_uploaded_file
 from app.services.llm_service import analyze_contract
+from app.services.auth_service import (
+    authenticate_user,
+    create_access_token,
+    get_current_user,
+    get_password_hash,
+    get_user_by_email,
+    get_user_by_username,
+)
 from app.services.document_repository import (
     create_analysis_report,
     create_document,
@@ -37,8 +49,19 @@ from app.services.document_repository import (
 from app.services.rag_service import save_chunks, semantic_retrieval
 from app.services.text_extractor import extract_text
 from app.services.ocr_service import run_ocr
+from app.models.db_models import User
 
 router = APIRouter()
+
+
+def _get_owned_document_or_404(db: Session, document_id: str, current_user: User):
+    document = get_document(db, document_id, user_id=current_user.id)
+    if document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found.",
+        )
+    return document
 
 
 @router.get("/health")
@@ -46,16 +69,87 @@ async def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@router.post("/auth/register", response_model=UserResponse)
+async def register_user(
+    payload: RegisterRequest,
+    db: Session = Depends(get_db),
+) -> UserResponse:
+    if get_user_by_username(db, payload.username):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username is already taken.",
+        )
+    if get_user_by_email(db, payload.email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is already registered.",
+        )
+
+    user = User(
+        username=payload.username,
+        email=payload.email,
+        hashed_password=get_password_hash(payload.password),
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        is_active=user.is_active,
+    )
+
+
+@router.post("/auth/login", response_model=AuthResponse)
+async def login_user(
+    payload: LoginRequest,
+    db: Session = Depends(get_db),
+) -> AuthResponse:
+    user = authenticate_user(db, payload.username, payload.password)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password.",
+        )
+
+    access_token = create_access_token(subject=user.username)
+    return AuthResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse(
+            id=user.id,
+            username=user.username,
+            email=user.email,
+            is_active=user.is_active,
+        ),
+    )
+
+
+@router.get("/auth/me", response_model=UserResponse)
+async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
+    return UserResponse(
+        id=current_user.id,
+        username=current_user.username,
+        email=current_user.email,
+        is_active=current_user.is_active,
+    )
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> UploadResponse:
     document_id, saved_path = await save_uploaded_file(file)
     try:
         create_document(
             db=db,
             document_id=document_id,
+            user_id=current_user.id,
             filename=file.filename or "uploaded_file",
             file_path=saved_path,
             status="uploaded",
@@ -76,8 +170,13 @@ async def upload_file(
 
 
 @router.post("/extract", response_model=ExtractResponse)
-async def extract_document_text(payload: ExtractRequest) -> ExtractResponse:
-    target_file = Path(payload.file_path)
+async def extract_document_text(
+    payload: ExtractRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ExtractResponse:
+    owned_document = _get_owned_document_or_404(db, payload.document_id, current_user)
+    target_file = Path(owned_document.file_path)
     if not target_file.exists() or not target_file.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -85,7 +184,7 @@ async def extract_document_text(payload: ExtractRequest) -> ExtractResponse:
         )
 
     try:
-        extracted_text = extract_text(payload.file_path)
+        extracted_text = extract_text(owned_document.file_path)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -112,8 +211,10 @@ async def extract_document_text(payload: ExtractRequest) -> ExtractResponse:
 async def process_uploaded_document(
     payload: ProcessRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ProcessResponse:
-    target_file = Path(payload.file_path)
+    owned_document = _get_owned_document_or_404(db, payload.document_id, current_user)
+    target_file = Path(owned_document.file_path)
     if not target_file.exists() or not target_file.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -121,7 +222,7 @@ async def process_uploaded_document(
         )
 
     try:
-        result = process_document(payload.document_id, payload.file_path)
+        result = process_document(payload.document_id, owned_document.file_path)
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -152,6 +253,7 @@ async def process_uploaded_document(
             document_id=payload.document_id,
             status="processed",
             text_length=result["text_length"],
+            user_id=current_user.id,
         )
     except SQLAlchemyError as exc:
         db.rollback()
@@ -196,6 +298,7 @@ async def chunk_document_text(payload: ChunkRequest) -> ChunkResponse:
 async def analyze_document_text(
     payload: AnalyzeRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> AnalyzeResponse:
     try:
         chunks = chunk_text(payload.text)
@@ -211,6 +314,7 @@ async def analyze_document_text(
 
     context_chunks: list[str] = chunks[:5]
     if payload.document_id:
+        _get_owned_document_or_404(db, payload.document_id, current_user)
         try:
             # Uses deterministic ids with upsert, so repeated indexing is safe.
             save_chunks(payload.document_id, chunks)
@@ -254,7 +358,11 @@ async def analyze_document_text(
 
     if payload.document_id:
         try:
-            existing_document = get_document(db, payload.document_id)
+            existing_document = get_document(
+                db,
+                payload.document_id,
+                user_id=current_user.id,
+            )
             if existing_document is not None:
                 create_analysis_report(
                     db=db,
@@ -266,6 +374,7 @@ async def analyze_document_text(
                     db=db,
                     document_id=payload.document_id,
                     status="analyzed",
+                    user_id=current_user.id,
                 )
         except SQLAlchemyError as exc:
             db.rollback()
@@ -285,7 +394,9 @@ async def analyze_document_text(
 async def index_document_text(
     payload: IndexRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> IndexResponse:
+    _get_owned_document_or_404(db, payload.document_id, current_user)
     try:
         chunks = chunk_text(payload.text)
         saved_count = save_chunks(payload.document_id, chunks)
@@ -301,12 +412,13 @@ async def index_document_text(
         ) from exc
 
     try:
-        existing_document = get_document(db, payload.document_id)
+        existing_document = get_document(db, payload.document_id, user_id=current_user.id)
         if existing_document is not None:
             update_document_status(
                 db=db,
                 document_id=payload.document_id,
                 status="indexed",
+                user_id=current_user.id,
             )
     except SQLAlchemyError as exc:
         db.rollback()
@@ -323,12 +435,19 @@ async def index_document_text(
 
 
 @router.post("/retrieve", response_model=RetrieveResponse)
-async def retrieve_chunks(payload: RetrieveRequest) -> RetrieveResponse:
+async def retrieve_chunks(
+    payload: RetrieveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RetrieveResponse:
     if payload.top_k <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="top_k must be greater than 0.",
         )
+
+    if payload.document_id:
+        _get_owned_document_or_404(db, payload.document_id, current_user)
 
     try:
         results = semantic_retrieval(
@@ -346,8 +465,13 @@ async def retrieve_chunks(payload: RetrieveRequest) -> RetrieveResponse:
 
 
 @router.post("/ocr", response_model=OcrResponse)
-async def run_document_ocr(payload: OcrRequest) -> OcrResponse:
-    target_file = Path(payload.file_path)
+async def run_document_ocr(
+    payload: OcrRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OcrResponse:
+    owned_document = _get_owned_document_or_404(db, payload.document_id, current_user)
+    target_file = Path(owned_document.file_path)
     if not target_file.exists() or not target_file.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -355,7 +479,7 @@ async def run_document_ocr(payload: OcrRequest) -> OcrResponse:
         )
 
     try:
-        text = run_ocr(payload.file_path)
+        text = run_ocr(owned_document.file_path)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -385,8 +509,9 @@ async def run_document_ocr(payload: OcrRequest) -> OcrResponse:
 async def get_document_by_id(
     document_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> DocumentResponse:
-    document = get_document(db, document_id)
+    document = get_document(db, document_id, user_id=current_user.id)
     if document is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -404,8 +529,11 @@ async def get_document_by_id(
 
 
 @router.get("/documents", response_model=list[DocumentResponse])
-async def get_documents(db: Session = Depends(get_db)) -> list[DocumentResponse]:
-    documents = list_documents(db)
+async def get_documents(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[DocumentResponse]:
+    documents = list_documents(db, user_id=current_user.id)
     return [
         DocumentResponse(
             document_id=document.id,

@@ -99,6 +99,9 @@ POPPLER_PATH=C:\poppler\Library\bin
 ## Available endpoints
 
 - `GET /api/health`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me` (Bearer token)
 - `POST /api/upload` (multipart/form-data, field name: `file`)
 - `POST /api/extract`
 - `POST /api/process`
@@ -117,6 +120,31 @@ curl http://localhost:8000/api/health
 
 curl -X POST http://localhost:8000/api/upload \
   -F "file=@backend/test_data/sample.docx"
+```
+
+## Auth quick start
+
+Register:
+
+```bash
+curl -X POST http://localhost:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","email":"demo@example.com","password":"DemoPass123"}'
+```
+
+Login:
+
+```bash
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","password":"DemoPass123"}'
+```
+
+`/auth/login` returns `access_token`. Use it as:
+
+```bash
+curl http://localhost:8000/api/auth/me \
+  -H "Authorization: Bearer <access_token>"
 ```
 
 ## Run tests

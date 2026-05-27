@@ -5,11 +5,20 @@ import { StepCard } from "../components/StepCard";
 import { useContractAnalysis } from "../hooks/useContractAnalysis";
 import { AppShell } from "../layouts/AppShell";
 
-export function DashboardPage() {
+type DashboardPageProps = {
+  currentUsername: string;
+  onLogout: () => void;
+};
+
+export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps) {
   const model = useContractAnalysis();
 
   return (
-    <AppShell backendHealthy={model.healthState === "success"}>
+    <AppShell
+      backendHealthy={model.healthState === "success"}
+      userLabel={currentUsername}
+      onLogout={onLogout}
+    >
       <section className="hero reveal">
         <h2>Загрузка, обработка и AI-анализ договоров</h2>
         <p>

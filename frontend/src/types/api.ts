@@ -50,3 +50,27 @@ export type DocumentResponse = {
 export type HealthResponse = {
   status: string;
 };
+
+export type RegisterRequest = {
+  username: string;
+  email: string;
+  password: string;
+};
+
+export type LoginRequest = {
+  username: string;
+  password: string;
+};
+
+export type UserResponse = {
+  id: string;
+  username: string;
+  email: string;
+  is_active: boolean;
+};
+
+export type AuthResponse = {
+  access_token: string;
+  token_type: string;
+  user: UserResponse;
+};

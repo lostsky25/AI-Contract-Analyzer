@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     allowed_extensions: list[str] = Field(default_factory=lambda: [".pdf", ".docx"])
     openrouter_api_key: str = ""
     openrouter_model: str = "openai/gpt-4o-mini"
+    openrouter_ocr_model: str = "nvidia/nemotron-nano-12b-v2-vl"
     openrouter_base_url: str = "https://openrouter.ai/api/v1/chat/completions"
     chroma_db_dir: str = "./chroma_db"
     embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"

@@ -26,7 +26,10 @@ from app.models.schemas import (
     RetrieveResponse,
     UserResponse,
     UploadResponse,
+    OrchestrateRequest,
+    OrchestrateResponse,
 )
+from app.agents.orchestrator import Orchestrator
 from app.services.chunking_service import chunk_text
 from app.services.document_processor import process_document
 from app.services.file_service import save_uploaded_file
@@ -52,6 +55,7 @@ from app.services.ocr_service import run_ocr
 from app.models.db_models import User
 
 router = APIRouter()
+orchestrator = Orchestrator()
 
 
 def _get_owned_document_or_404(db: Session, document_id: str, current_user: User):
@@ -67,6 +71,39 @@ def _get_owned_document_or_404(db: Session, document_id: str, current_user: User
 @router.get("/health")
 async def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.post("/orchestrate", response_model=OrchestrateResponse)
+async def run_orchestrator(
+    payload: OrchestrateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OrchestrateResponse:
+    owned_document = _get_owned_document_or_404(db, payload.document_id, current_user)
+    try:
+        report = orchestrator.run(
+            db=db,
+            document_id=payload.document_id,
+            file_path=owned_document.file_path,
+            user_id=current_user.id,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to run orchestrated analysis workflow.",
+        ) from exc
+
+    return OrchestrateResponse(**report)
 
 
 @router.post("/auth/register", response_model=UserResponse)

@@ -12,7 +12,14 @@ import type {
   UploadResponse
 } from "../types/api";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api";
+function normalizeApiBaseUrl(rawUrl: string): string {
+  const trimmed = rawUrl.replace(/\/+$/, "");
+  return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
+}
+
+const API_BASE_URL = normalizeApiBaseUrl(
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api"
+);
 const AUTH_TOKEN_KEY = "auth_token";
 
 class ApiError extends Error {

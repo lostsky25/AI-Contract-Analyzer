@@ -125,3 +125,19 @@ class AuthResponse(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+
+
+class OrchestrateRequest(BaseModel):
+    document_id: str
+
+
+class OrchestrateResponse(BaseModel):
+    document_id: str
+    status: str
+    summary: str
+    overall_risk: str
+    risks: list[dict]
+    key_terms: list[dict]
+    disclaimer: str
+    used_ocr: bool
+    chunks_count: int

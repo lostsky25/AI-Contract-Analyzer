@@ -46,6 +46,19 @@ AI Contract Analyzer — сервис для предварительного а
 
 ---
 
+# Быстрый старт (Docker)
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+API: http://localhost:8000/docs
+
+Подробнее: [backend/README.md](backend/README.md)
+
+---
+
 # Основной функционал MVP
 
 - Загрузка PDF/DOCX

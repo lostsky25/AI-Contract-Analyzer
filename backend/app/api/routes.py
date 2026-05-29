@@ -54,7 +54,7 @@ from app.services.document_repository import (
     list_documents,
     update_document_status,
 )
-from app.services.rag_service import save_chunks, semantic_retrieval
+from app.services.rag_service import save_chunk_records, save_chunks, semantic_retrieval
 from app.services.text_extractor import extract_text
 from app.services.ocr_service import run_ocr
 from app.services.report_store import get_report
@@ -388,7 +388,11 @@ async def process_uploaded_document(
         ) from exc
 
     try:
-        saved_count = save_chunks(payload.document_id, result.get("chunks", []))
+        chunk_records = result.get("chunk_records") or []
+        if chunk_records:
+            saved_count = save_chunk_records(payload.document_id, chunk_records)
+        else:
+            saved_count = save_chunks(payload.document_id, result.get("chunks", []))
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

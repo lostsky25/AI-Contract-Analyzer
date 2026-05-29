@@ -28,7 +28,10 @@ class Orchestrator:
             processed = self.document_processing_agent.run(document_id, file_path)
             raw = processed["raw"]
             retrieval = self.retrieval_agent.run(
-                document_id=document_id, text=raw["full_text"]
+                document_id=document_id,
+                text=raw["full_text"],
+                chunk_records=raw.get("chunk_records"),
+                pages=raw.get("pages"),
             )
             merged_context = retrieval.get("risk_context", []) + retrieval.get(
                 "terms_context", []

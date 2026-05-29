@@ -26,3 +26,30 @@ def chunk_text(text: str, chunk_size: int = 1200, overlap: int = 200) -> list[st
         start = end - overlap
 
     return chunks
+
+
+def chunk_records_from_pages(
+    pages: list[dict],
+    chunk_size: int = 1200,
+    overlap: int = 200,
+) -> list[dict]:
+    records: list[dict] = []
+    global_index = 0
+
+    for page_item in pages:
+        page = page_item.get("page")
+        page_text = str(page_item.get("text", "")).strip()
+        if not page_text:
+            continue
+
+        for chunk in chunk_text(page_text, chunk_size=chunk_size, overlap=overlap):
+            records.append(
+                {
+                    "text": chunk,
+                    "page": page,
+                    "chunk_index": global_index,
+                }
+            )
+            global_index += 1
+
+    return records

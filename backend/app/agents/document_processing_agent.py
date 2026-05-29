@@ -6,7 +6,7 @@ class DocumentProcessingAgent:
         result = process_document(document_id, file_path)
         return {
             "document_id": document_id,
-            "pages": [{"page": 1, "text": result["full_text"]}],
+            "pages": result.get("pages", []),
             "metadata": {
                 "file_type": file_path.split(".")[-1].lower(),
                 "ocr_used": result["used_ocr"],

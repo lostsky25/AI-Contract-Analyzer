@@ -42,28 +42,63 @@ def create_embeddings(chunks: list[str]) -> list[list[float]]:
     return embeddings.tolist()
 
 
-def save_chunks(document_id: str, chunks: list[str]) -> int:
-    if not chunks:
+def _page_to_meta(page: int | None) -> int:
+    if page is None:
+        return 0
+    return int(page)
+
+
+def _page_from_meta(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        page = int(value)
+    except (TypeError, ValueError):
+        return None
+    return None if page <= 0 else page
+
+
+def save_chunk_records(document_id: str, records: list[dict]) -> int:
+    if not records:
+        return 0
+
+    ids: list[str] = []
+    texts: list[str] = []
+    metadatas: list[dict] = []
+
+    for index, record in enumerate(records):
+        text = str(record.get("text", "")).strip()
+        if not text:
+            continue
+        chunk_id = str(record.get("chunk_id") or f"{document_id}_{index}")
+        ids.append(chunk_id)
+        texts.append(text)
+        metadatas.append(
+            {
+                "document_id": document_id,
+                "chunk_id": chunk_id,
+                "chunk_index": int(record.get("chunk_index", index)),
+                "page": _page_to_meta(record.get("page")),
+            }
+        )
+
+    if not texts:
         return 0
 
     collection = get_collection()
-    embeddings = create_embeddings(chunks)
-    ids = [f"{document_id}_{index}" for index in range(len(chunks))]
-    metadatas = [
-        {
-            "document_id": document_id,
-            "chunk_index": index,
-        }
-        for index in range(len(chunks))
-    ]
-
+    embeddings = create_embeddings(texts)
     collection.upsert(
         ids=ids,
-        documents=chunks,
+        documents=texts,
         metadatas=metadatas,
         embeddings=embeddings,
     )
-    return len(chunks)
+    return len(ids)
+
+
+def save_chunks(document_id: str, chunks: list[str]) -> int:
+    records = [{"text": chunk, "page": None, "chunk_index": index} for index, chunk in enumerate(chunks)]
+    return save_chunk_records(document_id, records)
 
 
 def semantic_retrieval(
@@ -87,14 +122,20 @@ def semantic_retrieval(
     documents = result.get("documents", [[]])[0]
     metadatas = result.get("metadatas", [[]])[0]
     distances = result.get("distances", [[]])[0]
+    ids = result.get("ids", [[]])[0]
 
     output: list[dict] = []
-    for text, metadata, score in zip(documents, metadatas, distances):
+    for chunk_id, text, metadata, score in zip(ids, documents, metadatas, distances):
+        metadata = metadata or {}
+        resolved_chunk_id = str(metadata.get("chunk_id") or chunk_id or "")
+        page = _page_from_meta(metadata.get("page"))
         output.append(
             {
                 "text": text,
+                "page": page,
+                "chunk_id": resolved_chunk_id,
                 "score": float(score),
-                "metadata": metadata or {},
+                "metadata": metadata,
             }
         )
     return output

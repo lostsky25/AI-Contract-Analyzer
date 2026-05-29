@@ -1,6 +1,6 @@
 import pytest
 
-from app.services.chunking_service import chunk_text
+from app.services.chunking_service import chunk_records_from_pages, chunk_text
 
 
 def test_short_text_returns_one_chunk() -> None:
@@ -22,3 +22,16 @@ def test_overlap_greater_or_equal_chunk_size_raises_value_error() -> None:
 
 def test_empty_text_returns_empty_list() -> None:
     assert chunk_text("") == []
+
+
+def test_chunk_records_from_pages_preserves_page() -> None:
+    records = chunk_records_from_pages(
+        [
+            {"page": 2, "text": "Termination requires 30 days notice."},
+            {"page": 5, "text": "Payment terms are net 30."},
+        ]
+    )
+    assert len(records) >= 2
+    assert records[0]["page"] == 2
+    assert records[0]["chunk_index"] == 0
+    assert all(record["page"] == 2 for record in records if "Termination" in record["text"])

@@ -48,10 +48,30 @@ Rules:
 """
 
 
-def _chunk_id(document_id: str, metadata: dict[str, Any]) -> str:
+def _resolve_chunk_id(item: dict[str, Any], document_id: str) -> str:
+    if item.get("chunk_id"):
+        return str(item["chunk_id"])
+    metadata = item.get("metadata") or {}
+    if "chunk_id" in metadata:
+        return str(metadata["chunk_id"])
     if "chunk_index" in metadata:
         return f"{document_id}_{metadata['chunk_index']}"
-    return str(metadata.get("id", ""))
+    return ""
+
+
+def _resolve_page(item: dict[str, Any]) -> int | None:
+    if "page" in item:
+        page = item.get("page")
+        return int(page) if isinstance(page, int) else None
+    metadata = item.get("metadata") or {}
+    page = metadata.get("page")
+    if page is None:
+        return None
+    try:
+        page_int = int(page)
+    except (TypeError, ValueError):
+        return None
+    return None if page_int <= 0 else page_int
 
 
 def _format_evidence(chunks: list[dict[str, Any]], document_id: str) -> str:
@@ -60,13 +80,10 @@ def _format_evidence(chunks: list[dict[str, Any]], document_id: str) -> str:
         text = str(item.get("text", "")).strip()
         if not text:
             continue
-        metadata = item.get("metadata") or {}
-        chunk_id = _chunk_id(document_id, metadata)
-        page = metadata.get("page")
+        chunk_id = _resolve_chunk_id(item, document_id)
+        page = _resolve_page(item)
         page_str = str(page) if page is not None else "unknown"
-        blocks.append(
-            f"[chunk_id={chunk_id}; page={page_str}]\n{text}"
-        )
+        blocks.append(f"[chunk_id={chunk_id}; page={page_str}]\n{text}")
     return "\n\n---\n\n".join(blocks)
 
 
@@ -98,13 +115,11 @@ def _citations_from_chunks(chunks: list[dict[str, Any]], document_id: str) -> li
         text = str(item.get("text", "")).strip()
         if not text:
             continue
-        metadata = item.get("metadata") or {}
-        page = metadata.get("page")
         citations.append(
             {
                 "quote": text[:500],
-                "page": int(page) if isinstance(page, int) else None,
-                "chunk_id": _chunk_id(document_id, metadata),
+                "page": _resolve_page(item),
+                "chunk_id": _resolve_chunk_id(item, document_id),
             }
         )
     return citations

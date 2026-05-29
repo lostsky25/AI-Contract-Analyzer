@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from docx import Document
 
-from app.services.text_extractor import extract_text
+from app.services.text_extractor import extract_pages, extract_text
 
 
 def test_extract_text_from_docx(tmp_path: Path) -> None:
@@ -16,6 +16,18 @@ def test_extract_text_from_docx(tmp_path: Path) -> None:
     extracted = extract_text(str(file_path))
     assert "Payment terms are net 30." in extracted
     assert "Termination requires 30 days notice." in extracted
+
+
+def test_extract_pages_from_docx_uses_single_page(tmp_path: Path) -> None:
+    file_path = tmp_path / "contract.docx"
+    document = Document()
+    document.add_paragraph("Clause on page one.")
+    document.save(str(file_path))
+
+    pages = extract_pages(str(file_path))
+    assert len(pages) == 1
+    assert pages[0]["page"] == 1
+    assert "Clause on page one." in pages[0]["text"]
 
 
 def test_extract_text_unsupported_extension_raises_value_error(tmp_path: Path) -> None:

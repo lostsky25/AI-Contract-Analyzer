@@ -103,6 +103,49 @@ Notes:
 - Answers are grounded in retrieved chunks of the uploaded file only.
 - Does not search external legal databases.
 
+## Page-aware evidence (chunks, report, Q&A)
+
+### Extraction
+
+| Format | `pages` shape | `page` on chunks |
+|--------|---------------|------------------|
+| PDF | `[{ "page": 1, "text": "..." }, ...]` (1-based) | Real page number |
+| DOCX | Single block `[{ "page": 1, "text": "..." }]` | Always `1` (no reliable page boundaries in MVP) |
+| OCR (PDF) | Per rendered page when `pdf2image` succeeds | Same as PDF page index |
+| OCR (images) | `[{ "page": 1, "text": "..." }]` | `1` |
+
+**DOCX limitation:** Word files do not expose stable print pages in this pipeline. Citations use `page: 1` or `null` in reports; treat page numbers as approximate for DOCX only.
+
+### Chunk record (internal + Chroma metadata)
+
+```json
+{
+  "chunk_id": "{document_id}_{index}",
+  "document_id": "uuid",
+  "text": "string",
+  "page": 1,
+  "chunk_index": 0
+}
+```
+
+Chroma stores `page` as `0` when unknown; retrieval maps `0` → `null`.
+
+### Retrieval result (`semantic_retrieval`)
+
+```json
+{
+  "text": "string",
+  "page": 1,
+  "chunk_id": "uuid_0",
+  "score": 0.42,
+  "metadata": { "document_id": "uuid", "chunk_id": "uuid_0", "page": 1 }
+}
+```
+
+### Report (`GET /api/documents/{id}/report`)
+
+Risks and key terms include `quote` and `page`. `ReportAgent` fills missing `quote` from `explanation`/`value` and leaves `page` as `null` when unavailable.
+
 ### Example: read legal sources
 
 ```bash

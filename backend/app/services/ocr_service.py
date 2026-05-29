@@ -10,28 +10,46 @@ def _configure_tesseract(pytesseract_module: object) -> None:
         pytesseract_module.pytesseract.tesseract_cmd = settings.tesseract_cmd
 
 
-def _extract_pdf_with_ocr(path: Path) -> str:
-    try:
-        import pytesseract
-        from pdf2image import convert_from_path
-    except ModuleNotFoundError as exc:
-        raise RuntimeError(
-            "OCR dependencies are missing. Install pytesseract and pdf2image."
-        ) from exc
+def run_ocr_pages(file_path: str) -> list[dict]:
+    path = Path(file_path)
+    extension = path.suffix.lower()
 
-    _configure_tesseract(pytesseract)
-    try:
-        images = convert_from_path(
-            str(path),
-            dpi=300,
-            poppler_path=settings.poppler_path or None,
-        )
-        page_texts = [pytesseract.image_to_string(image) for image in images]
-        return "\n".join(page_texts).strip()
-    except Exception as exc:
-        raise RuntimeError(
-            "OCR execution failed. Verify TESSERACT_CMD and POPPLER_PATH configuration."
-        ) from exc
+    if extension == ".pdf":
+        try:
+            import pytesseract
+            from pdf2image import convert_from_path
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(
+                "OCR dependencies are missing. Install pytesseract and pdf2image."
+            ) from exc
+
+        _configure_tesseract(pytesseract)
+        try:
+            images = convert_from_path(
+                str(path),
+                dpi=300,
+                poppler_path=settings.poppler_path or None,
+            )
+            pages: list[dict] = []
+            for index, image in enumerate(images, start=1):
+                text = pytesseract.image_to_string(image).strip()
+                if text:
+                    pages.append({"page": index, "text": text})
+            return pages
+        except Exception as exc:
+            raise RuntimeError(
+                "OCR execution failed. Verify TESSERACT_CMD and POPPLER_PATH configuration."
+            ) from exc
+
+    text = run_ocr(file_path)
+    if not text:
+        return []
+    return [{"page": 1, "text": text}]
+
+
+def _extract_pdf_with_ocr(path: Path) -> str:
+    pages = run_ocr_pages(str(path))
+    return "\n\n".join(page["text"] for page in pages).strip()
 
 
 def _extract_image_with_ocr(path: Path) -> str:

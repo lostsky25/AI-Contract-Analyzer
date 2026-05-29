@@ -13,5 +13,8 @@ class ReportAgent:
         report["key_terms"] = list(report.get("key_terms", []))
         report["legal_sources"] = list(report.get("legal_sources", []))
         report["warnings"] = list(report.get("warnings", []))
+        if report["status"] not in {"failed", "processing"}:
+            if not report["legal_sources"] and report["warnings"]:
+                report["status"] = "done_with_warnings"
         report["disclaimer"] = DISCLAIMER
         return report

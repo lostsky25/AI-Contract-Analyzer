@@ -26,10 +26,8 @@ export type AnalyzeRequest = {
 };
 
 export type Risk = {
-<<<<<<< HEAD
-=======
   title: string;
-  severity: "low" | "medium" | "high" | "critical";
+  severity: "low" | "medium" | "high" | "critical" | "unknown";
   explanation: string;
   quote?: string;
   page?: number | null;
@@ -58,28 +56,23 @@ export type ContractReport = {
   risks: Risk[];
   key_terms: KeyTerm[];
   legal_sources: LegalSource[];
+  warnings?: string[];
   disclaimer: string;
+  used_ocr?: boolean;
+  chunks_count?: number;
 };
 
 export type LegacyAnalyzeRisk = {
->>>>>>> feature/backend-mvp
   type: string;
   severity: "low" | "medium" | "high" | "critical";
   description: string;
   recommendation?: string;
 };
 
-<<<<<<< HEAD
-export type AnalyzeResponse = {
-  status: string;
-  summary: string;
-  risks: Risk[];
-=======
 export type LegacyAnalyzeResponse = {
   status: string;
   summary: string;
   risks: LegacyAnalyzeRisk[];
->>>>>>> feature/backend-mvp
 };
 
 export type DocumentResponse = {
@@ -91,27 +84,30 @@ export type DocumentResponse = {
   created_at: string;
 };
 
+export type DocumentStatusResponse = {
+  document_id: string;
+  status: string;
+};
+
 export type HealthResponse = {
   status: string;
 };
 
-<<<<<<< HEAD
-=======
-export type Citation = {
-  quote: string;
-  page?: number | null;
-};
-
 export type DocumentQuestionResponse = {
   document_id: string;
+  status: string;
   question: string;
   answer: string;
-  confidence: number;
-  citations: Citation[];
-  disclaimer: string;
+  model: string;
+  fallback_model: string;
 };
 
->>>>>>> feature/backend-mvp
+export type LegalSourcesResponse = {
+  document_id: string;
+  legal_sources: LegalSource[];
+  warnings: string[];
+};
+
 export type RegisterRequest = {
   username: string;
   email: string;

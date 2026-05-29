@@ -28,10 +28,6 @@ from app.models.schemas import (
     UploadResponse,
     OrchestrateRequest,
     OrchestrateResponse,
-<<<<<<< HEAD
-)
-from app.agents.orchestrator import Orchestrator
-=======
     DocumentUploadResponse,
     DocumentStatusResponse,
     DocumentAskRequest,
@@ -39,7 +35,6 @@ from app.agents.orchestrator import Orchestrator
 )
 from app.agents.orchestrator import Orchestrator
 from app.agents.document_qa_agent import DocumentQAAgent
->>>>>>> feature/backend-mvp
 from app.services.chunking_service import chunk_text
 from app.services.document_processor import process_document
 from app.services.file_service import save_uploaded_file
@@ -62,18 +57,12 @@ from app.services.document_repository import (
 from app.services.rag_service import save_chunks, semantic_retrieval
 from app.services.text_extractor import extract_text
 from app.services.ocr_service import run_ocr
-<<<<<<< HEAD
-=======
 from app.services.report_store import get_report
->>>>>>> feature/backend-mvp
 from app.models.db_models import User
 
 router = APIRouter()
 orchestrator = Orchestrator()
-<<<<<<< HEAD
-=======
 document_qa_agent = DocumentQAAgent()
->>>>>>> feature/backend-mvp
 
 
 def _get_owned_document_or_404(db: Session, document_id: str, current_user: User):

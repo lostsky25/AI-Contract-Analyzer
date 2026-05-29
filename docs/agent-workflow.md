@@ -21,11 +21,13 @@
    Model: `OPENROUTER_MODEL_KEY_TERMS` (`google/gemma-4-31b-it:free`)  
    Fallback: `OPENROUTER_MODEL_FALLBACK`.
 
-6. **LegalResearchAgent** (LLM + web search capability in architecture)  
+6. **LegalResearchAgent** (mandatory LLM + web search step)  
    Model: `OPENROUTER_MODEL_LEGAL_RESEARCH` (`openrouter/owl-alpha`)  
    Provider: `LEGAL_SEARCH_PROVIDER=openrouter_web_search`  
-   Allowed domains: `consultant.ru`, `garant.ru`, `pravo.gov.ru`  
-   Fallback: `OPENROUTER_MODEL_FALLBACK`.
+   Tool: `openrouter:web_search` with `allowed_domains` = `consultant.ru`, `garant.ru`, `pravo.gov.ru`  
+   Input: `document_id`, `risks`, `key_terms`, `summary`  
+   Output: `legal_sources[]`, `limitations`, `warnings`  
+   If web search is unavailable: returns `legal_sources=[]`, report status may become `done_with_warnings`.
 
 7. **ReportAgent** (no LLM)  
    Normalizes and validates report fields against `docs/report-schema.json`.
@@ -40,8 +42,10 @@
 
 ## LegalResearchAgent limitations (mandatory)
 
-- Public web pages only.
+- Public web pages only (via OpenRouter `openrouter:web_search`).
 - No authentication attempts on legal platforms.
 - No paywall bypass.
-- No claims about full access to closed legal databases (including consultant/garant paid sections).
-- If results are unavailable, returns empty `legal_sources` with warnings and does not break full analysis.
+- No claims about full access to closed legal databases (including Consultant Plus / Garant commercial sections).
+- Search results are preliminary references, not verified legal advice.
+- For production, use a legal provider/API with proper licensing instead of relying only on public page snippets.
+- If results are unavailable, returns empty `legal_sources` with `limitations` and does not break full analysis (`done_with_warnings`).

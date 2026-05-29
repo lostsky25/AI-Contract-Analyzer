@@ -1,12 +1,7 @@
-<<<<<<< HEAD
 import { DocumentsTable } from "../components/DocumentsTable";
-import { RiskList } from "../components/RiskList";
-=======
-﻿import { DocumentsTable } from "../components/DocumentsTable";
 import { DisclaimerBlock } from "../components/DisclaimerBlock";
 import { OverallRiskBadge } from "../components/OverallRiskBadge";
 import { ReportTabs } from "../components/ReportTabs";
->>>>>>> feature/backend-mvp
 import { StatusBadge } from "../components/StatusBadge";
 import { StepCard } from "../components/StepCard";
 import { useContractAnalysis } from "../hooks/useContractAnalysis";
@@ -29,13 +24,8 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
       <section className="hero reveal">
         <h2>Загрузка, обработка и AI-анализ договоров</h2>
         <p>
-<<<<<<< HEAD
-          Основной сценарий: <strong>upload → process → analyze</strong>. Процесс и анализ могут
-          занимать до 30-60 секунд, поэтому в интерфейсе есть статусы выполнения.
-=======
-          Основной сценарий: <strong>upload → process → analyze</strong>. Обработка может занять до
-          30-60 секунд. Во время выполнения отображаются loading и статусы этапов.
->>>>>>> feature/backend-mvp
+          Основной сценарий: <strong>upload → process → analyze</strong>. Обработка может занять
+          до 30-60 секунд. Во время выполнения отображаются loading и статусы этапов.
         </p>
       </section>
 
@@ -81,12 +71,8 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
         >
           {model.processResult ? (
             <div className="meta">
-<<<<<<< HEAD
               <StatusBadge value={model.processResult.status} /> · chunks:{" "}
               <strong>{model.processResult.chunks_count}</strong> · OCR:{" "}
-=======
-              <StatusBadge value={model.processResult.status} /> · chunks: <strong>{model.processResult.chunks_count}</strong> · OCR:{" "}
->>>>>>> feature/backend-mvp
               <strong>{model.processResult.used_ocr ? "да" : "нет"}</strong>
             </div>
           ) : (
@@ -96,70 +82,47 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
 
         <StepCard
           title="3. Analyze"
-<<<<<<< HEAD
-          description="LLM-анализ с выдачей summary и списка рисков."
-=======
           description="Сборка структурированного отчета: summary, risks, key terms, legal sources, Q&A."
->>>>>>> feature/backend-mvp
           actionLabel="Запустить AI-анализ"
           onAction={() => void model.analyzeDocument()}
           loading={model.analyzeState === "loading"}
           disabled={!model.canAnalyze || model.isBusy}
           done={model.analyzeState === "success"}
         >
-<<<<<<< HEAD
-          <p className="meta">
-            API `/analyze` может работать до минуты. Не закрывайте страницу во время выполнения.
-          </p>
-=======
           <p className="meta">Этап анализа может быть долгим при первом запуске и больших документах.</p>
->>>>>>> feature/backend-mvp
         </StepCard>
       </section>
 
       <section className="grid-2">
         <article className="card reveal">
           <div className="section-head">
-<<<<<<< HEAD
-            <h3>Текст для анализа</h3>
-            <button className="button ghost" onClick={() => void model.refreshSelectedDocument()}>
-              Обновить карточку документа
-=======
             <h3>Текст для fallback-анализа</h3>
-            <button className="button ghost" onClick={() => void model.refreshSelectedDocument()} type="button">
+            <button
+              className="button ghost"
+              onClick={() => void model.refreshSelectedDocument()}
+              type="button"
+            >
               Обновить статус документа
->>>>>>> feature/backend-mvp
             </button>
           </div>
           <textarea
             className="text-area"
             value={model.analysisInput}
             onChange={(event) => model.setAnalysisInput(event.target.value)}
-<<<<<<< HEAD
-            placeholder="После process здесь появится полный текст документа."
-=======
             placeholder="После process здесь появится текст документа."
->>>>>>> feature/backend-mvp
           />
         </article>
 
         <article className="card reveal">
-<<<<<<< HEAD
-          <h3>AI-отчет</h3>
-          {!model.analysisResult ? (
-            <p className="muted">Запустите анализ, чтобы увидеть summary и риски.</p>
-          ) : (
-            <>
-              <p className="summary">{model.analysisResult.summary}</p>
-              <RiskList risks={model.analysisResult.risks} />
-=======
           <div className="section-head">
             <h3>Структурированный отчёт</h3>
             {model.report ? <OverallRiskBadge risk={model.report.overall_risk} /> : null}
           </div>
 
           {!model.report ? (
-            <p className="muted">Запустите анализ, чтобы увидеть summary, риски, ключевые условия и источники.</p>
+            <p className="muted">
+              Запустите анализ, чтобы увидеть summary, риски, ключевые условия и источники.
+            </p>
           ) : (
             <>
               <ReportTabs
@@ -171,7 +134,6 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
                 onAskQuestion={() => void model.askQuestion()}
               />
               <DisclaimerBlock text={model.report.disclaimer} />
->>>>>>> feature/backend-mvp
             </>
           )}
         </article>

@@ -138,11 +138,6 @@ class OrchestrateResponse(BaseModel):
     overall_risk: str
     risks: list[dict]
     key_terms: list[dict]
-<<<<<<< HEAD
-    disclaimer: str
-    used_ocr: bool
-    chunks_count: int
-=======
     legal_sources: list[dict] = []
     warnings: list[str] = []
     disclaimer: str
@@ -172,4 +167,4 @@ class DocumentAskResponse(BaseModel):
     answer: str
     model: str
     fallback_model: str
->>>>>>> feature/backend-mvp
+

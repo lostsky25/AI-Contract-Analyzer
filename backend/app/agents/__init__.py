@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-
-=======
 from app.agents.document_processing_agent import DocumentProcessingAgent
 from app.agents.document_qa_agent import DocumentQAAgent
 from app.agents.legal_research_agent import LegalResearchAgent
@@ -16,4 +13,3 @@ __all__ = [
     "ReportAgent",
     "RetrievalAgent",
 ]
->>>>>>> feature/backend-mvp

@@ -290,8 +290,6 @@ h4 {
   line-height: 1.55;
 }
 
-<<<<<<< HEAD
-=======
 .overall-risk {
   display: inline-flex;
   align-items: center;
@@ -481,7 +479,6 @@ h4 {
   background: rgba(255, 255, 255, 0.78);
 }
 
->>>>>>> feature/backend-mvp
 .risk-list {
   display: grid;
   gap: 10px;
@@ -542,14 +539,11 @@ h4 {
   color: var(--critical);
 }
 
-<<<<<<< HEAD
-=======
 .severity-unknown {
   background: rgba(19, 37, 54, 0.08);
   color: var(--muted);
 }
 
->>>>>>> feature/backend-mvp
 .table-wrap {
   overflow-x: auto;
 }
@@ -650,8 +644,6 @@ th {
   .grid-2 {
     grid-template-columns: 1fr;
   }
-<<<<<<< HEAD
-=======
 
   .overview-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -660,5 +652,4 @@ th {
   .qa-form {
     grid-template-columns: 1fr;
   }
->>>>>>> feature/backend-mvp
 }

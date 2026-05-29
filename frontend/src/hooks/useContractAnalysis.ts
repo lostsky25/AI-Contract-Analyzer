@@ -1,9 +1,4 @@
-<<<<<<< HEAD
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ApiError, apiClient } from "../services/api";
-import type { AnalyzeResponse, DocumentResponse, ProcessResponse, UploadResponse } from "../types/api";
-=======
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiError, apiClient } from "../services/api";
 import type {
@@ -15,26 +10,18 @@ import type {
   Risk,
   UploadResponse
 } from "../types/api";
->>>>>>> feature/backend-mvp
 
 type AsyncState = "idle" | "loading" | "success" | "error";
 
 type PipelineError = {
-<<<<<<< HEAD
-  stage: "health" | "upload" | "process" | "analyze" | "documents";
-=======
   stage: "health" | "upload" | "process" | "analyze" | "documents" | "question";
->>>>>>> feature/backend-mvp
   message: string;
 } | null;
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = [".pdf", ".docx"];
-<<<<<<< HEAD
-=======
 const DEFAULT_DISCLAIMER =
-  "Внешняя проверка выполняется по публично доступным источникам и не заменяет профессионального юриста.";
->>>>>>> feature/backend-mvp
+  "Система выполняет предварительный анализ и не заменяет профессионального юриста.";
 
 function getFileExtension(fileName: string): string {
   const parts = fileName.toLowerCase().split(".");
@@ -51,8 +38,6 @@ function parseError(error: unknown): string {
   return "Неизвестная ошибка";
 }
 
-<<<<<<< HEAD
-=======
 function normalizeRisk(risk: LegacyAnalyzeResponse["risks"][number]): Risk {
   return {
     title: risk.type,
@@ -72,16 +57,40 @@ function resolveOverallRisk(risks: Risk[]): ContractReport["overall_risk"] {
   return "unknown";
 }
 
+function normalizeOrchestratorRisk(risk: Record<string, unknown>): Risk {
+  const title = String(risk.title ?? risk.type ?? "Risk").trim() || "Risk";
+  const explanation = String(
+    risk.explanation ?? risk.description ?? ""
+  ).trim();
+  const severityRaw = String(risk.severity ?? "unknown").toLowerCase();
+  const severity = (
+    ["low", "medium", "high", "critical", "unknown"] as const
+  ).includes(severityRaw as Risk["severity"])
+    ? (severityRaw as Risk["severity"])
+    : "unknown";
+
+  return {
+    title,
+    severity,
+    explanation,
+    quote: String(risk.quote ?? risk.recommendation ?? explanation).trim() || undefined,
+    page: typeof risk.page === "number" ? risk.page : null
+  };
+}
+
 function normalizeReport(
   documentId: string,
   response: ContractReport | LegacyAnalyzeResponse
 ): ContractReport {
   if ("overall_risk" in response) {
+    const risks = (response.risks ?? []).map((risk) =>
+      normalizeOrchestratorRisk(risk as unknown as Record<string, unknown>)
+    );
     return {
       ...response,
       legal_sources: response.legal_sources ?? [],
       key_terms: response.key_terms ?? [],
-      risks: response.risks ?? [],
+      risks,
       disclaimer: response.disclaimer || DEFAULT_DISCLAIMER
     };
   }
@@ -99,17 +108,13 @@ function normalizeReport(
   };
 }
 
->>>>>>> feature/backend-mvp
 export function useContractAnalysis() {
   const [healthState, setHealthState] = useState<AsyncState>("idle");
   const [uploadState, setUploadState] = useState<AsyncState>("idle");
   const [processState, setProcessState] = useState<AsyncState>("idle");
   const [analyzeState, setAnalyzeState] = useState<AsyncState>("idle");
   const [documentsState, setDocumentsState] = useState<AsyncState>("idle");
-<<<<<<< HEAD
-=======
   const [questionState, setQuestionState] = useState<AsyncState>("idle");
->>>>>>> feature/backend-mvp
 
   const [error, setError] = useState<PipelineError>(null);
   const [documents, setDocuments] = useState<DocumentResponse[]>([]);
@@ -117,18 +122,12 @@ export function useContractAnalysis() {
 
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
   const [processResult, setProcessResult] = useState<ProcessResponse | null>(null);
-<<<<<<< HEAD
-  const [analysisResult, setAnalysisResult] = useState<AnalyzeResponse | null>(null);
-  const [analysisInput, setAnalysisInput] = useState("");
-
-=======
   const [report, setReport] = useState<ContractReport | null>(null);
   const [analysisInput, setAnalysisInput] = useState("");
 
   const [questionInput, setQuestionInput] = useState("");
   const [questionResult, setQuestionResult] = useState<DocumentQuestionResponse | null>(null);
 
->>>>>>> feature/backend-mvp
   const checkHealth = useCallback(async () => {
     setHealthState("loading");
     setError(null);
@@ -168,27 +167,13 @@ export function useContractAnalysis() {
     const extension = getFileExtension(file.name);
     if (!ALLOWED_EXTENSIONS.includes(extension)) {
       setSelectedFile(null);
-<<<<<<< HEAD
-      setError({
-        stage: "upload",
-        message: "Поддерживаются только форматы PDF и DOCX."
-      });
-=======
       setError({ stage: "upload", message: "Поддерживаются только форматы PDF и DOCX." });
->>>>>>> feature/backend-mvp
       return;
     }
 
     if (file.size > MAX_FILE_SIZE) {
       setSelectedFile(null);
-<<<<<<< HEAD
-      setError({
-        stage: "upload",
-        message: "Размер файла превышает 20 MB."
-      });
-=======
       setError({ stage: "upload", message: "Размер файла превышает 20 MB." });
->>>>>>> feature/backend-mvp
       return;
     }
 
@@ -204,16 +189,11 @@ export function useContractAnalysis() {
     setUploadState("loading");
     setProcessState("idle");
     setAnalyzeState("idle");
-<<<<<<< HEAD
-    setProcessResult(null);
-    setAnalysisResult(null);
-=======
     setQuestionState("idle");
     setProcessResult(null);
     setReport(null);
     setQuestionResult(null);
     setQuestionInput("");
->>>>>>> feature/backend-mvp
     setAnalysisInput("");
     setError(null);
 
@@ -236,11 +216,7 @@ export function useContractAnalysis() {
 
     setProcessState("loading");
     setAnalyzeState("idle");
-<<<<<<< HEAD
-    setAnalysisResult(null);
-=======
     setReport(null);
->>>>>>> feature/backend-mvp
     setError(null);
 
     try {
@@ -263,22 +239,6 @@ export function useContractAnalysis() {
       setError({ stage: "analyze", message: "Нет document_id. Выполните upload." });
       return;
     }
-<<<<<<< HEAD
-    if (!analysisInput.trim()) {
-      setError({ stage: "analyze", message: "Нет текста для анализа." });
-      return;
-    }
-
-    setAnalyzeState("loading");
-    setError(null);
-
-    try {
-      const result = await apiClient.analyzeDocument({
-        text: analysisInput,
-        document_id: uploadResult.document_id
-      });
-      setAnalysisResult(result);
-=======
 
     setAnalyzeState("loading");
     setQuestionState("idle");
@@ -299,7 +259,6 @@ export function useContractAnalysis() {
       }
 
       setReport(normalizedReport);
->>>>>>> feature/backend-mvp
       setAnalyzeState("success");
       await loadDocuments();
     } catch (errorValue) {
@@ -308,8 +267,6 @@ export function useContractAnalysis() {
     }
   }, [analysisInput, loadDocuments, uploadResult]);
 
-<<<<<<< HEAD
-=======
   const askQuestion = useCallback(async () => {
     if (!uploadResult?.document_id) {
       setError({ stage: "question", message: "Сначала загрузите документ." });
@@ -324,7 +281,10 @@ export function useContractAnalysis() {
     setError(null);
 
     try {
-      const result = await apiClient.askDocumentQuestion(uploadResult.document_id, questionInput);
+      const result = await apiClient.askDocumentQuestion(
+        uploadResult.document_id,
+        questionInput
+      );
       setQuestionResult(result);
       setQuestionState("success");
     } catch (errorValue) {
@@ -333,23 +293,20 @@ export function useContractAnalysis() {
     }
   }, [questionInput, uploadResult?.document_id]);
 
->>>>>>> feature/backend-mvp
   const refreshSelectedDocument = useCallback(async () => {
     if (!uploadResult?.document_id) {
       return;
     }
     try {
-<<<<<<< HEAD
-      const fresh = await apiClient.getDocument(uploadResult.document_id);
-=======
       const fresh = await apiClient.getDocumentStatus(uploadResult.document_id);
->>>>>>> feature/backend-mvp
       setDocuments((previous) => {
         const hasDoc = previous.some((doc) => doc.document_id === fresh.document_id);
         if (!hasDoc) {
           return [fresh, ...previous];
         }
-        return previous.map((doc) => (doc.document_id === fresh.document_id ? fresh : doc));
+        return previous.map((doc) =>
+          doc.document_id === fresh.document_id ? fresh : doc
+        );
       });
     } catch {
       // Non-blocking refresh.
@@ -359,22 +316,15 @@ export function useContractAnalysis() {
   const canProcess = Boolean(uploadResult) && processState !== "loading";
   const canAnalyze =
     Boolean(uploadResult) &&
-<<<<<<< HEAD
-    Boolean(analysisInput.trim()) &&
-    processState === "success" &&
-    analyzeState !== "loading";
-
-  const isBusy = useMemo(
-    () => [uploadState, processState, analyzeState].some((state) => state === "loading"),
-    [analyzeState, processState, uploadState]
-=======
     (processState === "success" || Boolean(analysisInput.trim())) &&
     analyzeState !== "loading";
 
   const isBusy = useMemo(
-    () => [uploadState, processState, analyzeState, questionState].some((state) => state === "loading"),
+    () =>
+      [uploadState, processState, analyzeState, questionState].some(
+        (state) => state === "loading"
+      ),
     [analyzeState, processState, questionState, uploadState]
->>>>>>> feature/backend-mvp
   );
 
   return {
@@ -383,40 +333,26 @@ export function useContractAnalysis() {
     processState,
     analyzeState,
     documentsState,
-<<<<<<< HEAD
-=======
     questionState,
->>>>>>> feature/backend-mvp
     documents,
     selectedFile,
     uploadResult,
     processResult,
-<<<<<<< HEAD
-    analysisResult,
-=======
     report,
->>>>>>> feature/backend-mvp
     analysisInput,
     error,
     isBusy,
     canProcess,
     canAnalyze,
-<<<<<<< HEAD
-    setAnalysisInput,
-=======
     questionInput,
     questionResult,
     setAnalysisInput,
     setQuestionInput,
->>>>>>> feature/backend-mvp
     pickFile,
     uploadDocument,
     processDocument,
     analyzeDocument,
-<<<<<<< HEAD
-=======
     askQuestion,
->>>>>>> feature/backend-mvp
     checkHealth,
     loadDocuments,
     refreshSelectedDocument

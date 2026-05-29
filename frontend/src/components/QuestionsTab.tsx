@@ -38,8 +38,7 @@ export function QuestionsTab({
           <p>
             <strong>Ответ:</strong> {questionResult.answer}
           </p>
-          <p className="muted">Уверенность: {questionResult.confidence}</p>
-          <p className="muted">{questionResult.disclaimer}</p>
+          <p className="muted">Модель: {questionResult.model}</p>
         </article>
       ) : null}
     </div>

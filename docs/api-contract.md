@@ -51,8 +51,39 @@
 
 ## Legal research constraints
 
-- Legal research uses public pages only.
-- No paywall bypass.
-- No login automation for closed systems.
-- No claim of full access to consultant/garant private content.
-- If sources are unavailable, API may return empty `legal_sources` and warnings without failing the full analysis.
+- `LegalResearchAgent` is a mandatory step in `POST /api/documents/{document_id}/analyze`.
+- Uses OpenRouter server tool `openrouter:web_search` with domain filter:
+  - `consultant.ru`
+  - `garant.ru`
+  - `pravo.gov.ru`
+- Public web pages only; no paywall bypass; no login automation.
+- No claim of full access to Consultant Plus / Garant commercial databases.
+- Report may include:
+  - `legal_sources[]` (title, url, snippet, source_type, relevance)
+  - `warnings[]` (includes limitations text)
+  - `status=done_with_warnings` when sources are empty but analysis completed
+- Separate read endpoint: `GET /api/documents/{document_id}/legal-sources`
+
+### Example: run analyze (requires auth token)
+
+```bash
+curl -X POST "http://localhost:8000/api/documents/{document_id}/analyze" \
+  -H "Authorization: Bearer <token>"
+```
+
+### Example: read legal sources
+
+```bash
+curl "http://localhost:8000/api/documents/{document_id}/legal-sources" \
+  -H "Authorization: Bearer <token>"
+```
+
+Response shape:
+
+```json
+{
+  "document_id": "uuid",
+  "legal_sources": [],
+  "warnings": ["Legal web search provider is unavailable."]
+}
+```

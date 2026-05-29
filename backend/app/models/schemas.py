@@ -160,11 +160,17 @@ class DocumentAskRequest(BaseModel):
     question: str
 
 
+class DocumentAskCitation(BaseModel):
+    quote: str
+    page: int | None = None
+    chunk_id: str = ""
+
+
 class DocumentAskResponse(BaseModel):
     document_id: str
-    status: str
     question: str
     answer: str
-    model: str
-    fallback_model: str
+    confidence: str
+    citations: list[DocumentAskCitation]
+    disclaimer: str
 

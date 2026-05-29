@@ -44,7 +44,25 @@
     ```json
     { "question": "string" }
     ```
-  - Uses `DocumentQAAgent`.
+  - Uses `DocumentQAAgent` (RAG over uploaded contract chunks only; **no web search**).
+  - Model: `OPENROUTER_MODEL_QA` with fallback `OPENROUTER_MODEL_FALLBACK`.
+  - Response:
+    ```json
+    {
+      "document_id": "string",
+      "question": "string",
+      "answer": "string",
+      "confidence": "low | medium | high | unknown",
+      "citations": [
+        {
+          "quote": "string",
+          "page": 1,
+          "chunk_id": "string"
+        }
+      ],
+      "disclaimer": "string"
+    }
+    ```
 
 - `GET /api/documents/{document_id}/legal-sources`
   - Optional helper to fetch legal research results separately.
@@ -70,6 +88,20 @@
 curl -X POST "http://localhost:8000/api/documents/{document_id}/analyze" \
   -H "Authorization: Bearer <token>"
 ```
+
+### Example: document Q&A (RAG only, no web search)
+
+```bash
+curl -X POST "http://localhost:8000/api/documents/{document_id}/ask" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d "{\"question\":\"Какие условия расторжения договора?\"}"
+```
+
+Notes:
+- Document must be processed/indexed first (`POST /api/process` or full `/analyze` workflow).
+- Answers are grounded in retrieved chunks of the uploaded file only.
+- Does not search external legal databases.
 
 ### Example: read legal sources
 

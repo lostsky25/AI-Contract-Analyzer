@@ -274,27 +274,21 @@ async def ask_document_question(
     current_user: User = Depends(get_current_user),
 ) -> DocumentAskResponse:
     _get_owned_document_or_404(db, document_id, current_user)
-    try:
-        retrieved = semantic_retrieval(
-            query=payload.question,
-            document_id=document_id,
-            top_k=5,
+
+    if not payload.question.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question must not be empty.",
         )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve context for question answering.",
-        ) from exc
-
-    context = "\n\n".join(str(item.get("text", "")) for item in retrieved if item.get("text"))
-    if not context.strip():
-        context = "No indexed context was found for this document."
 
     try:
-        qa = document_qa_agent.run(question=payload.question, context=context)
-    except RuntimeError as exc:
+        result = document_qa_agent.run(
+            document_id=document_id,
+            question=payload.question,
+        )
+    except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
     except Exception as exc:
@@ -303,14 +297,7 @@ async def ask_document_question(
             detail="Failed to generate document answer.",
         ) from exc
 
-    return DocumentAskResponse(
-        document_id=document_id,
-        status="answered",
-        question=payload.question,
-        answer=str(qa.get("answer", "")),
-        model=str(qa.get("model", "")),
-        fallback_model=str(qa.get("fallback_model", "")),
-    )
+    return DocumentAskResponse(**result)
 
 
 @router.get("/documents/{document_id}/legal-sources")

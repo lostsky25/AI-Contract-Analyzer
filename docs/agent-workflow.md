@@ -32,9 +32,11 @@
 7. **ReportAgent** (no LLM)  
    Normalizes and validates report fields against `docs/report-schema.json`.
 
-8. **DocumentQAAgent** (LLM step)  
+8. **DocumentQAAgent** (LLM step, RAG-only)  
    Model: `OPENROUTER_MODEL_QA` (`nvidia/nemotron-3-super-120b-a12b:free`)  
-   Fallback: `OPENROUTER_MODEL_FALLBACK`.
+   Fallback: `OPENROUTER_MODEL_FALLBACK` (`deepseek/deepseek-v4-flash:free`)  
+   Retrieval: `semantic_retrieval(document_id, question)` — top-k chunks from ChromaDB  
+   **No web search** — answers only from uploaded contract text.
 
 ## Workflow
 

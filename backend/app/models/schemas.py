@@ -31,6 +31,7 @@ class ProcessResponse(BaseModel):
     document_id: str
     status: str
     text_preview: str
+    full_text: str
     text_length: int
     chunks_count: int
     used_ocr: bool
@@ -100,3 +101,69 @@ class OcrResponse(BaseModel):
     status: str
     text_preview: str
     text_length: int
+
+
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    email: str
+    is_active: bool
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserResponse
+
+
+class OrchestrateRequest(BaseModel):
+    document_id: str
+
+
+class OrchestrateResponse(BaseModel):
+    document_id: str
+    status: str
+    summary: str
+    overall_risk: str
+    risks: list[dict]
+    key_terms: list[dict]
+    legal_sources: list[dict] = []
+    warnings: list[str] = []
+    disclaimer: str
+    used_ocr: bool
+    chunks_count: int
+
+
+class DocumentUploadResponse(BaseModel):
+    document_id: str
+    filename: str
+    status: str
+
+
+class DocumentStatusResponse(BaseModel):
+    document_id: str
+    status: str
+
+
+class DocumentAskRequest(BaseModel):
+    question: str
+
+
+class DocumentAskResponse(BaseModel):
+    document_id: str
+    status: str
+    question: str
+    answer: str
+    model: str
+    fallback_model: str

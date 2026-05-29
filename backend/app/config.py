@@ -9,9 +9,20 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_model: str = "openai/gpt-4o-mini"
     openrouter_ocr_model: str = "nvidia/nemotron-nano-12b-v2-vl"
+    openrouter_model_risk: str = "nvidia/nemotron-3-super-120b-a12b:free"
+    openrouter_model_key_terms: str = "google/gemma-4-31b-it:free"
+    openrouter_model_qa: str = "nvidia/nemotron-3-super-120b-a12b:free"
+    openrouter_model_legal_research: str = "openrouter/owl-alpha"
+    openrouter_model_fallback: str = "deepseek/deepseek-v4-flash:free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1/chat/completions"
     chroma_db_dir: str = "./chroma_db"
     embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_model: str = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+    legal_web_search_enabled: bool = True
+    legal_search_provider: str = "openrouter_web_search"
+    legal_allowed_domains: str = "consultant.ru,garant.ru,pravo.gov.ru"
+    legal_search_max_results: int = 5
+    legal_search_context_size: str = "medium"
     database_url: str = (
         "postgresql://postgres:postgres@localhost:5432/ai_contract_analyzer"
     )

@@ -1,0 +1,33 @@
+{
+  "document_id": "string",
+  "status": "processing | done | failed | done_with_warnings",
+  "summary": "string",
+  "overall_risk": "low | medium | high | unknown",
+  "risks": [
+    {
+      "title": "string",
+      "severity": "low | medium | high | unknown",
+      "explanation": "string",
+      "quote": "string",
+      "page": 1
+    }
+  ],
+  "key_terms": [
+    {
+      "title": "string",
+      "value": "string",
+      "quote": "string",
+      "page": 1
+    }
+  ],
+  "legal_sources": [
+    {
+      "title": "string",
+      "url": "string",
+      "snippet": "string",
+      "source_type": "consultant_plus | garant | pravo_gov | other_public_source",
+      "relevance": "low | medium | high | unknown"
+    }
+  ],
+  "disclaimer": "Система выполняет предварительный анализ и не заменяет профессионального юриста."
+}

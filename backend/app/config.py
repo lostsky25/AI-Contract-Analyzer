@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1/chat/completions"
     chroma_db_dir: str = "./chroma_db"
     embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
-    embedding_model: str = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     legal_web_search_enabled: bool = True
     legal_search_provider: str = "openrouter_web_search"
     legal_allowed_domains: str = "consultant.ru,garant.ru,pravo.gov.ru"

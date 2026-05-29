@@ -2,7 +2,7 @@
 
 ## File ownership and boundaries
 
-- Backend/AI work must stay in `backend/**`, `docs/**`, `AGENTS.md`, `.env.example`.
+- Backend/AI work must stay in `backend/**`, `docs/**`, `AGENTS.md`, `backend/.env.example`.
 - Do not modify `frontend/**` in backend-focused agent tasks.
 - Do not rewrite large existing modules when a minimal extension is enough.
 

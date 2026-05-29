@@ -23,16 +23,15 @@ services:
       dockerfile: Dockerfile
     container_name: ai-contract-api
     restart: unless-stopped
+    env_file:
+      - path: ./backend/.env
+        required: false
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/ai_contract_analyzer
       UPLOAD_DIR: /app/uploads
-      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-20}
       CHROMA_DB_DIR: /app/chroma_db
-      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
       TESSERACT_CMD: /usr/bin/tesseract
       POPPLER_PATH: ""
     volumes:
@@ -64,6 +63,9 @@ services:
       dockerfile: Dockerfile
     container_name: ai-contract-frontend
     restart: unless-stopped
+    env_file:
+      - path: ./frontend/.env
+        required: false
     ports:
       - "5173:5173"
     environment:

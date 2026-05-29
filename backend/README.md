@@ -9,11 +9,13 @@
 
 From the project root:
 
-1. Optional: create `.env` in project root for secrets (e.g. OpenRouter):
+1. Create backend environment file (required for OpenRouter / JWT):
 
    ```bash
-   cp .env.example .env
+   cp backend/.env.example backend/.env
    ```
+
+   Edit `backend/.env` and set `OPENROUTER_API_KEY`. See [../docs/env-setup.md](../docs/env-setup.md).
 
 2. Start services:
 
@@ -77,9 +79,9 @@ First startup may take several minutes while embedding models are downloaded.
    CREATE DATABASE ai_contract_analyzer;
    ```
 
-4. Copy `backend/.env.example` to `backend/.env` and set `DATABASE_URL`.
+4. Copy `backend/.env.example` to `backend/.env`, set `DATABASE_URL` (localhost) and `OPENROUTER_API_KEY`.
 
-5. Run the API:
+5. Run the API from the `backend` directory:
 
    ```bash
    uvicorn app.main:app --reload

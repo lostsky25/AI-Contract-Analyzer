@@ -1,5 +1,10 @@
+from pathlib import Path
+
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+BACKEND_ENV_FILE = BACKEND_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -39,7 +44,7 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(BACKEND_ENV_FILE) if BACKEND_ENV_FILE.is_file() else None,
         env_file_encoding="utf-8",
         case_sensitive=False,
     )

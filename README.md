@@ -48,9 +48,11 @@ AI Contract Analyzer — сервис для предварительного а
 # Быстрый старт (Docker)
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 docker compose up --build
 ```
+
+Укажите `OPENROUTER_API_KEY` в `backend/.env`. Подробнее: [docs/env-setup.md](docs/env-setup.md).
 
 API: http://localhost:8000/docs
 
@@ -67,7 +69,7 @@ docker compose up --build
 # 2) Установить зависимости для smoke (из корня или backend/)
 pip install -r backend/requirements.txt
 
-# 3) Полный прогон (нужен OPENROUTER_API_KEY в .env / backend/.env)
+# 3) Полный прогон (нужен OPENROUTER_API_KEY в backend/.env)
 python scripts/smoke_backend.py
 
 # Только инфраструктура без LLM (без ключа — exit code 2)

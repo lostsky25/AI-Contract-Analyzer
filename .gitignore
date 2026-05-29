@@ -154,8 +154,9 @@ backend/uploads/*
 backend/*.db
 backend/test_data/
 
-# Environments
-.env
+# Environments (secrets — never commit)
+backend/.env
+frontend/.env
 .envrc
 .venv
 env/

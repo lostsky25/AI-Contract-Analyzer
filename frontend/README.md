@@ -11,11 +11,7 @@ By default frontend expects backend API at:
 
 `http://localhost:8000/api`
 
-Override with `.env`:
-
-```env
-VITE_API_BASE_URL=http://localhost:8000/api
-```
+For local dev, copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_BASE_URL` if needed.
 
 ## Implemented MVP flow
 

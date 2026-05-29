@@ -36,6 +36,11 @@
 - `POST /api/documents/{document_id}/analyze`
   - Runs full workflow:
     `DocumentProcessingAgent -> RetrievalAgent -> LegalRiskAgent -> KeyTermsAgent -> LegalResearchAgent -> ReportAgent`
+  - Optional body:
+    ```json
+    { "legal_web_search_enabled": true }
+    ```
+  - If `legal_web_search_enabled` is `false`, `LegalResearchAgent` skips web search (faster analyze).
 
 - `GET /api/documents/{document_id}/report`
 

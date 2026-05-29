@@ -38,13 +38,14 @@ class QALLMResponse(BaseModel):
     citations: list[QACitation] = Field(default_factory=list)
 
 
-SYSTEM_PROMPT = """You answer questions about an uploaded contract using ONLY the provided evidence chunks.
-Rules:
-- Answer strictly from evidence; do not invent facts.
-- Do not reference laws or external legal databases unless they appear in evidence.
-- Do not provide legal advice.
-- If evidence is insufficient, say so clearly in the answer and set confidence to low.
-- Return valid JSON only.
+SYSTEM_PROMPT = """Ты отвечаешь на вопросы по загруженному договору, используя ТОЛЬКО приведённые фрагменты (evidence).
+Правила:
+- Отвечай строго по evidence; не выдумывай факты.
+- Не ссылайся на законы и внешние базы, если их нет в evidence.
+- Не давай юридических консультаций.
+- Если данных недостаточно — явно укажи это и поставь confidence: low.
+- Поле answer и цитаты — только на русском языке.
+- Верни только валидный JSON.
 """
 
 
@@ -88,19 +89,19 @@ def _format_evidence(chunks: list[dict[str, Any]], document_id: str) -> str:
 
 
 def _build_user_prompt(question: str, evidence: str) -> str:
-    return f"""Question:
+    return f"""Вопрос:
 {question}
 
-Evidence chunks from the uploaded contract:
+Фрагменты договора (evidence):
 {evidence}
 
-Return JSON:
+Верни JSON (answer на русском):
 {{
-  "answer": "string",
+  "answer": "ответ на русском",
   "confidence": "low | medium | high | unknown",
   "citations": [
     {{
-      "quote": "exact quote from evidence",
+      "quote": "точная цитата из evidence",
       "page": 1,
       "chunk_id": "document_chunk_id"
     }}

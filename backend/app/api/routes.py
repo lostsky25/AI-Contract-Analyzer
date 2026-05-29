@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -30,6 +30,7 @@ from app.models.schemas import (
     OrchestrateResponse,
     DocumentUploadResponse,
     DocumentStatusResponse,
+    DocumentAnalyzeRequest,
     DocumentAskRequest,
     DocumentAskResponse,
 )
@@ -93,6 +94,7 @@ async def run_orchestrator(
             document_id=payload.document_id,
             file_path=owned_document.file_path,
             user_id=current_user.id,
+            legal_web_search_enabled=payload.legal_web_search_enabled,
         )
     except RuntimeError as exc:
         raise HTTPException(
@@ -242,9 +244,13 @@ async def analyze_document_with_agents(
     document_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    payload: DocumentAnalyzeRequest = Body(default_factory=DocumentAnalyzeRequest),
 ) -> OrchestrateResponse:
     return await run_orchestrator(
-        payload=OrchestrateRequest(document_id=document_id),
+        payload=OrchestrateRequest(
+            document_id=document_id,
+            legal_web_search_enabled=payload.legal_web_search_enabled,
+        ),
         db=db,
         current_user=current_user,
     )

@@ -5,26 +5,27 @@ import httpx
 from app.config import settings
 
 SYSTEM_PROMPT = (
-    "You are an AI contract risk analyzer. "
-    "Analyze the contract text and return only valid JSON."
+    "Ты — ИИ-анализатор рисков по договорам. "
+    "Анализируй текст договора и возвращай только валидный JSON. "
+    "Все текстовые поля в JSON (summary, type, description, recommendation) пиши только на русском языке."
 )
 
-USER_PROMPT_TEMPLATE = """Analyze this contract context and return JSON with:
+USER_PROMPT_TEMPLATE = """Проанализируй фрагменты договора и верни JSON:
 {{
-  "summary": "short contract summary",
+  "summary": "краткое резюме договора на русском",
   "risks": [
     {{
-      "type": "risk type",
+      "type": "тип риска на русском",
       "severity": "low|medium|high|critical",
-      "description": "risk description",
-      "recommendation": "what to check or improve"
+      "description": "описание риска на русском",
+      "recommendation": "что проверить или улучшить на русском"
     }}
   ]
 }}
 
-The response must be valid JSON only.
+Ответ — только валидный JSON. Все описания — на русском языке.
 
-Contract context:
+Контекст договора:
 {context}
 """
 

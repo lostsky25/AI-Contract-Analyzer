@@ -2,10 +2,10 @@ from app.config import settings
 from app.services.llm_service import analyze_contract
 
 RISK_QUERY = (
-    "contract risks, obligations, penalties, payment terms, termination conditions"
+    "риски договора обязательства штрафы неустойка срок оплаты расторжение"
 )
 KEY_TERMS_QUERY = (
-    "key terms: duration, payment terms, liability, termination, confidentiality"
+    "ключевые условия срок действия оплата ответственность расторжение конфиденциальность"
 )
 
 

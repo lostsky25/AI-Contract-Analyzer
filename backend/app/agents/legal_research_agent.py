@@ -37,11 +37,12 @@ class LegalResearchLLMResponse(BaseModel):
     limitations: str = ""
 
 
-SYSTEM_PROMPT = """You are a legal research assistant for contract analysis previews.
-Use the openrouter:web_search tool to find publicly accessible references on allowed legal domains only.
-Do not claim full access to Consultant Plus or Garant commercial databases.
-Do not provide legal advice.
-Return ONLY valid JSON matching the requested schema after reviewing search results.
+SYSTEM_PROMPT = """Ты помощник по правовому поиску для предварительного анализа договоров.
+Используй инструмент openrouter:web_search только по разрешённым публичным доменам.
+Не утверждай полный доступ к коммерческим базам КонсультантПлюс/Гарант.
+Не давай юридических консультаций.
+Поля title, snippet, limitations — только на русском языке.
+Верни ТОЛЬКО валидный JSON по схеме после просмотра результатов поиска.
 """
 
 
@@ -142,11 +143,11 @@ Return JSON:
       "relevance": "low | medium | high | unknown"
     }}
   ],
-  "limitations": "string describing coverage limits and that sources are public previews only"
+  "limitations": "ограничения поиска на русском (только публичные страницы)"
 }}
 
-Only include sources whose URLs are on allowed domains: {", ".join(parse_allowed_domains())}.
-If no reliable public sources found, return legal_sources=[] and explain in limitations.
+Только источники с URL на разрешённых доменах: {", ".join(parse_allowed_domains())}.
+Если надёжных источников нет — legal_sources=[] и поясни в limitations на русском.
 """
 
 
@@ -196,11 +197,19 @@ class LegalResearchAgent:
         risks: list[dict[str, Any]],
         key_terms: list[dict[str, Any]],
         summary: str,
+        web_search_enabled: bool | None = None,
     ) -> dict[str, Any]:
         allowed_domains = parse_allowed_domains()
+        enabled = (
+            settings.legal_web_search_enabled
+            if web_search_enabled is None
+            else web_search_enabled
+        )
 
-        if not settings.legal_web_search_enabled:
-            return _empty_result("Legal web search disabled by configuration.")
+        if not enabled:
+            return _empty_result(
+                "Поиск правовых источников в интернете отключён для этого анализа."
+            )
 
         if settings.legal_search_provider != "openrouter_web_search":
             return _empty_result(

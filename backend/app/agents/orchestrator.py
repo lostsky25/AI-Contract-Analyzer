@@ -17,7 +17,14 @@ class Orchestrator:
         self.legal_research_agent = LegalResearchAgent()
         self.report_agent = ReportAgent()
 
-    def run(self, db: Session, document_id: str, file_path: str, user_id: str) -> dict:
+    def run(
+        self,
+        db: Session,
+        document_id: str,
+        file_path: str,
+        user_id: str,
+        legal_web_search_enabled: bool = True,
+    ) -> dict:
         update_document_status(
             db=db,
             document_id=document_id,
@@ -47,6 +54,7 @@ class Orchestrator:
                 risks=risks,
                 key_terms=key_terms,
                 summary=summary,
+                web_search_enabled=legal_web_search_enabled,
             )
             assembled = self.analysis_agent.assemble_report(
                 document_id=document_id,

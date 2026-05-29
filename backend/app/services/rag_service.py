@@ -38,7 +38,12 @@ def create_embeddings(chunks: list[str]) -> list[list[float]]:
     if not chunks:
         return []
     model = get_embedding_model()
-    embeddings = model.encode(chunks)
+    embeddings = model.encode(
+        chunks,
+        batch_size=64,
+        show_progress_bar=False,
+        convert_to_numpy=True,
+    )
     return embeddings.tolist()
 
 
@@ -101,29 +106,12 @@ def save_chunks(document_id: str, chunks: list[str]) -> int:
     return save_chunk_records(document_id, records)
 
 
-def semantic_retrieval(
-    query: str,
-    document_id: str | None = None,
-    top_k: int = 5,
+def _parse_retrieval_rows(
+    ids: list,
+    documents: list,
+    metadatas: list,
+    distances: list,
 ) -> list[dict]:
-    if not query.strip():
-        return []
-
-    collection = get_collection()
-    query_embedding = create_embeddings([query])[0]
-
-    where = {"document_id": document_id} if document_id else None
-    result = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=top_k,
-        where=where,
-    )
-
-    documents = result.get("documents", [[]])[0]
-    metadatas = result.get("metadatas", [[]])[0]
-    distances = result.get("distances", [[]])[0]
-    ids = result.get("ids", [[]])[0]
-
     output: list[dict] = []
     for chunk_id, text, metadata, score in zip(ids, documents, metadatas, distances):
         metadata = metadata or {}
@@ -139,3 +127,49 @@ def semantic_retrieval(
             }
         )
     return output
+
+
+def semantic_retrieval(
+    query: str,
+    document_id: str | None = None,
+    top_k: int = 5,
+) -> list[dict]:
+    if not query.strip():
+        return []
+    results = batch_semantic_retrieval(
+        queries=[query],
+        document_id=document_id,
+        top_k=top_k,
+    )
+    return results[0] if results else []
+
+
+def batch_semantic_retrieval(
+    queries: list[str],
+    document_id: str | None = None,
+    top_k: int = 5,
+) -> list[list[dict]]:
+    normalized = [query.strip() for query in queries if query.strip()]
+    if not normalized:
+        return [[] for _ in queries]
+
+    collection = get_collection()
+    query_embeddings = create_embeddings(normalized)
+    where = {"document_id": document_id} if document_id else None
+
+    outputs: list[list[dict]] = []
+    for embedding in query_embeddings:
+        result = collection.query(
+            query_embeddings=[embedding],
+            n_results=top_k,
+            where=where,
+        )
+        documents = result.get("documents", [[]])[0]
+        metadatas = result.get("metadatas", [[]])[0]
+        distances = result.get("distances", [[]])[0]
+        ids = result.get("ids", [[]])[0]
+        outputs.append(_parse_retrieval_rows(ids, documents, metadatas, distances))
+
+    if len(outputs) < len(queries):
+        outputs.extend([[]] * (len(queries) - len(outputs)))
+    return outputs

@@ -89,6 +89,22 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
           disabled={!model.canAnalyze || model.isBusy}
           done={model.analyzeState === "success"}
         >
+          <label className="checkbox-option">
+            <input
+              type="checkbox"
+              checked={model.legalWebSearchEnabled}
+              onChange={(event) => model.setLegalWebSearchEnabled(event.target.checked)}
+              disabled={model.isBusy}
+            />
+            <span>
+              Искать правовые источники в интернете (Консультант+, Гарант, pravo.gov.ru)
+            </span>
+          </label>
+          <p className="meta">
+            {model.legalWebSearchEnabled
+              ? "Включён LegalResearchAgent — анализ может занять дольше."
+              : "Поиск в интернете отключён — отчёт без legal_sources, быстрее."}
+          </p>
           <p className="meta">Этап анализа может быть долгим при первом запуске и больших документах.</p>
         </StepCard>
       </section>

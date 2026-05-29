@@ -1,13 +1,18 @@
 from app.services.chunking_service import chunk_records_from_pages, chunk_text
-from app.services.rag_service import save_chunk_records, save_chunks, semantic_retrieval
+from app.services.rag_service import (
+    batch_semantic_retrieval,
+    save_chunk_records,
+    save_chunks,
+)
 
 RISK_QUERY = (
-    "contract risks, obligations, penalties, payment terms, termination conditions"
+    "риски договора обязательства штрафы неустойка срок оплаты расторжение"
 )
 KEY_TERMS_QUERY = (
-    "key terms: duration, payment terms, liability, termination, confidentiality"
+    "ключевые условия срок действия оплата ответственность расторжение конфиденциальность"
 )
-QA_QUERY = "question answering over contract clauses and obligations"
+
+RETRIEVAL_TOP_K = 4
 
 
 class RetrievalAgent:
@@ -32,13 +37,13 @@ class RetrievalAgent:
             save_chunks(document_id, chunks)
             count = len(chunks)
 
-        risk_context = semantic_retrieval(query=RISK_QUERY, document_id=document_id, top_k=5)
-        terms_context = semantic_retrieval(
-            query=KEY_TERMS_QUERY,
+        risk_context, terms_context = batch_semantic_retrieval(
+            queries=[RISK_QUERY, KEY_TERMS_QUERY],
             document_id=document_id,
-            top_k=5,
+            top_k=RETRIEVAL_TOP_K,
         )
-        qa_context = semantic_retrieval(query=QA_QUERY, document_id=document_id, top_k=5)
+        # qa_context не используется в orchestrator analyze; не вызываем лишний retrieval
+        qa_context: list[dict] = []
         return {
             "chunks_count": count,
             "risk_context": risk_context,

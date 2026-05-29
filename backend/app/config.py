@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     legal_web_search_enabled: bool = True
     legal_search_provider: str = "openrouter_web_search"
     legal_allowed_domains: str = "consultant.ru,garant.ru,pravo.gov.ru"
-    legal_search_max_results: int = 5
-    legal_search_context_size: str = "medium"
+    legal_search_max_results: int = 3
+    legal_search_context_size: str = "low"
     database_url: str = (
         "postgresql://postgres:postgres@localhost:5432/ai_contract_analyzer"
     )

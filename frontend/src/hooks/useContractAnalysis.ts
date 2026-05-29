@@ -127,6 +127,7 @@ export function useContractAnalysis() {
 
   const [questionInput, setQuestionInput] = useState("");
   const [questionResult, setQuestionResult] = useState<DocumentQuestionResponse | null>(null);
+  const [legalWebSearchEnabled, setLegalWebSearchEnabled] = useState(true);
 
   const checkHealth = useCallback(async () => {
     setHealthState("loading");
@@ -248,12 +249,16 @@ export function useContractAnalysis() {
     try {
       const analyzeResponse = await apiClient.analyzeDocument(uploadResult.document_id, {
         legacyText: analysisInput,
-        preferOrchestrator: true
+        preferOrchestrator: true,
+        legalWebSearchEnabled
       });
 
       const normalizedReport = normalizeReport(uploadResult.document_id, analyzeResponse);
 
-      if (!normalizedReport.legal_sources?.length) {
+      if (
+        legalWebSearchEnabled &&
+        !normalizedReport.legal_sources?.length
+      ) {
         const legalSources = await apiClient.getLegalSources(uploadResult.document_id);
         normalizedReport.legal_sources = legalSources;
       }
@@ -265,7 +270,7 @@ export function useContractAnalysis() {
       setAnalyzeState("error");
       setError({ stage: "analyze", message: parseError(errorValue) });
     }
-  }, [analysisInput, loadDocuments, uploadResult]);
+  }, [analysisInput, legalWebSearchEnabled, loadDocuments, uploadResult]);
 
   const askQuestion = useCallback(async () => {
     if (!uploadResult?.document_id) {
@@ -346,6 +351,8 @@ export function useContractAnalysis() {
     canAnalyze,
     questionInput,
     questionResult,
+    legalWebSearchEnabled,
+    setLegalWebSearchEnabled,
     setAnalysisInput,
     setQuestionInput,
     pickFile,

@@ -25,6 +25,15 @@ export type AnalyzeRequest = {
   document_id?: string | null;
 };
 
+export type DocumentAnalyzeRequest = {
+  legal_web_search_enabled?: boolean;
+};
+
+export type OrchestrateRequest = {
+  document_id: string;
+  legal_web_search_enabled?: boolean;
+};
+
 export type Risk = {
   title: string;
   severity: "low" | "medium" | "high" | "critical" | "unknown";

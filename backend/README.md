@@ -155,3 +155,39 @@ pytest
 ```
 
 Tests use mocked DB and do not require Docker services.
+
+Covered by pytest (no live API):
+
+- `GET /api/health`
+- Report schema validation and `ReportAgent` fallback
+- `LegalResearchAgent` normalization and no-API-key fallback
+- `GET /api/documents/{id}/status` and `/report` (mocked DB/orchestrator)
+- `POST /api/documents/{id}/analyze` and `/ask` (mocked)
+
+## Smoke test (live API)
+
+From repository root, with API running on port 8000:
+
+```powershell
+pip install -r backend/requirements.txt
+python scripts/smoke_backend.py
+```
+
+```bash
+bash scripts/smoke_backend.sh
+```
+
+| Step | Endpoint | Requires `OPENROUTER_API_KEY` |
+|------|----------|----------------------------------|
+| Health | `GET /api/health` | No |
+| Register/login | `/api/auth/*` | No |
+| Upload demo DOCX | `POST /api/documents` | No |
+| Full analyze | `POST /api/documents/{id}/analyze` | Yes |
+| Report + legal_sources | `GET .../report`, `.../legal-sources` | Yes (after analyze) |
+| Q&A + citations | `POST .../ask` | Yes |
+
+Demo file: `backend/test_data/demo_contract.docx` (auto-created on first smoke run).
+
+Without API key, smoke exits with code `2` after health/auth/upload — no stack trace.
+
+Legal web search may return empty `legal_sources` with `warnings`; analyze must still succeed (`done` or `done_with_warnings`).

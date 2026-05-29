@@ -127,8 +127,20 @@ export const apiClient = {
 
   async analyzeDocument(
     documentId: string,
-    options?: { legacyText?: string; preferOrchestrator?: boolean }
+    options?: {
+      legacyText?: string;
+      preferOrchestrator?: boolean;
+      legalWebSearchEnabled?: boolean;
+    }
   ) {
+    const legalWebSearchEnabled = options?.legalWebSearchEnabled ?? true;
+    const analyzeBody = JSON.stringify({
+      legal_web_search_enabled: legalWebSearchEnabled
+    });
+    const orchestrateBody = JSON.stringify({
+      document_id: documentId,
+      legal_web_search_enabled: legalWebSearchEnabled
+    });
     const variants: Array<() => Promise<ContractReport | LegacyAnalyzeResponse>> = [];
 
     if (options?.preferOrchestrator) {
@@ -138,7 +150,7 @@ export const apiClient = {
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ document_id: documentId })
+          body: orchestrateBody
         })
       );
     }
@@ -146,7 +158,11 @@ export const apiClient = {
     variants.push(
       () =>
         request<ContractReport>(`/documents/${documentId}/analyze`, {
-          method: "POST"
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: analyzeBody
         }),
       () =>
         request<ContractReport>("/orchestrate", {
@@ -154,7 +170,7 @@ export const apiClient = {
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ document_id: documentId })
+          body: orchestrateBody
         }),
       () =>
         request<LegacyAnalyzeResponse>("/analyze", {

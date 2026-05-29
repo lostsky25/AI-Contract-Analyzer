@@ -1,4 +1,4 @@
-def chunk_text(text: str, chunk_size: int = 1200, overlap: int = 200) -> list[str]:
+def chunk_text(text: str, chunk_size: int = 2000, overlap: int = 150) -> list[str]:
     if chunk_size <= 0:
         raise ValueError("chunk_size must be greater than 0.")
     if overlap < 0:
@@ -30,8 +30,8 @@ def chunk_text(text: str, chunk_size: int = 1200, overlap: int = 200) -> list[st
 
 def chunk_records_from_pages(
     pages: list[dict],
-    chunk_size: int = 1200,
-    overlap: int = 200,
+    chunk_size: int = 2000,
+    overlap: int = 150,
 ) -> list[dict]:
     records: list[dict] = []
     global_index = 0

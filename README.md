@@ -56,6 +56,30 @@ API: http://localhost:8000/docs
 
 Подробнее: [backend/README.md](backend/README.md)
 
+## Smoke test (agent workflow)
+
+Проверяет живой API: health, upload, analyze (LegalResearchAgent), report, Q&A.
+
+```bash
+# 1) Запустить API (Docker или uvicorn)
+docker compose up --build
+
+# 2) Установить зависимости для smoke (из корня или backend/)
+pip install -r backend/requirements.txt
+
+# 3) Полный прогон (нужен OPENROUTER_API_KEY в .env / backend/.env)
+python scripts/smoke_backend.py
+
+# Только инфраструктура без LLM (без ключа — exit code 2)
+python scripts/smoke_backend.py --skip-llm
+```
+
+Bash-обёртка: `bash scripts/smoke_backend.sh`
+
+Переменные: `SMOKE_BASE_URL`, `OPENROUTER_API_KEY`, `SMOKE_SKIP_LLM=1`, `SMOKE_USERNAME`, `SMOKE_DEMO_FILE`.
+
+Unit-тесты: `cd backend && pytest`
+
 ---
 
 # Основной функционал MVP

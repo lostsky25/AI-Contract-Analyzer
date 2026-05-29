@@ -127,8 +127,13 @@ class AuthResponse(BaseModel):
     user: UserResponse
 
 
+class DocumentAnalyzeRequest(BaseModel):
+    legal_web_search_enabled: bool = True
+
+
 class OrchestrateRequest(BaseModel):
     document_id: str
+    legal_web_search_enabled: bool = True
 
 
 class OrchestrateResponse(BaseModel):

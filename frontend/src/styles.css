@@ -290,6 +290,198 @@ h4 {
   line-height: 1.55;
 }
 
+<<<<<<< HEAD
+=======
+.overall-risk {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.overall-risk-low {
+  background: rgba(19, 138, 87, 0.16);
+  color: var(--good);
+}
+
+.overall-risk-medium {
+  background: rgba(191, 106, 31, 0.17);
+  color: var(--warn);
+}
+
+.overall-risk-high {
+  background: rgba(209, 60, 60, 0.16);
+  color: var(--bad);
+}
+
+.overall-risk-critical {
+  background: rgba(143, 31, 31, 0.2);
+  color: var(--critical);
+}
+
+.overall-risk-unknown {
+  background: rgba(19, 37, 54, 0.08);
+  color: var(--muted);
+}
+
+.report-tabs {
+  margin-top: 10px;
+}
+
+.report-tab-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.report-tab {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 10px;
+  padding: 7px 11px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.report-tab.active {
+  background: linear-gradient(90deg, rgba(11, 126, 161, 0.14), rgba(240, 143, 66, 0.14));
+  border-color: rgba(11, 126, 161, 0.34);
+}
+
+.report-tab-panel {
+  margin-top: 12px;
+}
+
+.overview-block {
+  display: grid;
+  gap: 12px;
+}
+
+.overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.overview-metrics > div {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.key-terms-list,
+.legal-sources-list {
+  display: grid;
+  gap: 10px;
+}
+
+.term-card,
+.legal-source-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.term-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.term-value {
+  font-weight: 700;
+  color: #27465f;
+}
+
+.evidence-quote {
+  margin-top: 9px;
+  display: grid;
+  gap: 4px;
+}
+
+.evidence-quote blockquote {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid rgba(11, 126, 161, 0.45);
+  background: rgba(11, 126, 161, 0.07);
+  border-radius: 8px;
+  color: #244259;
+}
+
+.evidence-page {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.legal-source-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.legal-source-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.source-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.source-link:hover {
+  text-decoration: underline;
+}
+
+.legal-empty {
+  margin-top: 8px;
+}
+
+.disclaimer-block {
+  margin-top: 14px;
+  background: rgba(11, 126, 161, 0.08);
+  border: 1px solid rgba(11, 126, 161, 0.2);
+  border-radius: 12px;
+  padding: 11px 12px;
+  color: #204156;
+}
+
+.questions-tab {
+  display: grid;
+  gap: 12px;
+}
+
+.qa-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.qa-form input {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.qa-answer {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+>>>>>>> feature/backend-mvp
 .risk-list {
   display: grid;
   gap: 10px;
@@ -350,6 +542,14 @@ h4 {
   color: var(--critical);
 }
 
+<<<<<<< HEAD
+=======
+.severity-unknown {
+  background: rgba(19, 37, 54, 0.08);
+  color: var(--muted);
+}
+
+>>>>>>> feature/backend-mvp
 .table-wrap {
   overflow-x: auto;
 }
@@ -450,4 +650,15 @@ th {
   .grid-2 {
     grid-template-columns: 1fr;
   }
+<<<<<<< HEAD
+=======
+
+  .overview-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .qa-form {
+    grid-template-columns: 1fr;
+  }
+>>>>>>> feature/backend-mvp
 }

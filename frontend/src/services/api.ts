@@ -1,15 +1,32 @@
+<<<<<<< HEAD
 import type {
   AnalyzeRequest,
   AnalyzeResponse,
   AuthResponse,
   DocumentResponse,
   HealthResponse,
+=======
+﻿import type {
+  AnalyzeRequest,
+  AuthResponse,
+  ContractReport,
+  DocumentQuestionResponse,
+  DocumentResponse,
+  HealthResponse,
+  LegacyAnalyzeResponse,
+  LegalSource,
+>>>>>>> feature/backend-mvp
   LoginRequest,
   ProcessRequest,
   ProcessResponse,
   RegisterRequest,
+<<<<<<< HEAD
   UserResponse,
   UploadResponse
+=======
+  UploadResponse,
+  UserResponse
+>>>>>>> feature/backend-mvp
 } from "../types/api";
 
 function normalizeApiBaseUrl(rawUrl: string): string {
@@ -32,6 +49,17 @@ class ApiError extends Error {
   }
 }
 
+<<<<<<< HEAD
+=======
+function isEndpointUnavailable(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    typeof error.status === "number" &&
+    [404, 405, 501].includes(error.status)
+  );
+}
+
+>>>>>>> feature/backend-mvp
 function normalizeError(payload: unknown): string {
   if (payload && typeof payload === "object" && "detail" in payload) {
     const detail = (payload as { detail: unknown }).detail;
@@ -63,13 +91,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers
   });
+<<<<<<< HEAD
+=======
+
+>>>>>>> feature/backend-mvp
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
     try {
       const payload = (await response.json()) as unknown;
       message = normalizeError(payload);
     } catch {
+<<<<<<< HEAD
       // Ignore JSON parse errors and keep fallback message.
+=======
+      // Keep fallback status message.
+>>>>>>> feature/backend-mvp
     }
     throw new ApiError(message, response.status);
   }
@@ -81,6 +117,10 @@ export const apiClient = {
   getHealth() {
     return request<HealthResponse>("/health");
   },
+<<<<<<< HEAD
+=======
+
+>>>>>>> feature/backend-mvp
   uploadDocument(file: File) {
     const formData = new FormData();
     formData.append("file", file);
@@ -89,6 +129,10 @@ export const apiClient = {
       body: formData
     });
   },
+<<<<<<< HEAD
+=======
+
+>>>>>>> feature/backend-mvp
   processDocument(payload: ProcessRequest) {
     return request<ProcessResponse>("/process", {
       method: "POST",
@@ -98,8 +142,14 @@ export const apiClient = {
       body: JSON.stringify(payload)
     });
   },
+<<<<<<< HEAD
   analyzeDocument(payload: AnalyzeRequest) {
     return request<AnalyzeResponse>("/analyze", {
+=======
+
+  analyzeText(payload: AnalyzeRequest) {
+    return request<LegacyAnalyzeResponse>("/analyze", {
+>>>>>>> feature/backend-mvp
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -107,12 +157,217 @@ export const apiClient = {
       body: JSON.stringify(payload)
     });
   },
+<<<<<<< HEAD
   getDocuments() {
     return request<DocumentResponse[]>("/documents");
   },
   getDocument(documentId: string) {
     return request<DocumentResponse>(`/documents/${documentId}`);
   },
+=======
+
+  async analyzeDocument(
+    documentId: string,
+    options?: { legacyText?: string; preferOrchestrator?: boolean }
+  ) {
+    const variants: Array<() => Promise<ContractReport | LegacyAnalyzeResponse>> = [];
+
+    if (options?.preferOrchestrator) {
+      variants.push(() =>
+        request<ContractReport>("/orchestrate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ document_id: documentId })
+        })
+      );
+    }
+
+    variants.push(
+      () =>
+        request<ContractReport>(`/documents/${documentId}/analyze`, {
+          method: "POST"
+        }),
+      () =>
+        request<ContractReport>(`/analyze/${documentId}`, {
+          method: "POST"
+        }),
+      () =>
+        request<ContractReport>("/orchestrate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ document_id: documentId })
+        }),
+      () =>
+        request<LegacyAnalyzeResponse>("/analyze", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ document_id: documentId })
+        })
+    );
+
+    if (options?.legacyText?.trim()) {
+      variants.push(() =>
+        request<LegacyAnalyzeResponse>("/analyze", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            document_id: documentId,
+            text: options.legacyText
+          })
+        })
+      );
+    }
+
+    let lastError: unknown;
+    for (const run of variants) {
+      try {
+        return await run();
+      } catch (error) {
+        lastError = error;
+        if (!isEndpointUnavailable(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError ?? new ApiError("Не удалось запустить анализ", 500);
+  },
+
+  async getDocumentStatus(documentId: string) {
+    try {
+      return await request<DocumentResponse>(`/documents/${documentId}/status`);
+    } catch (error) {
+      if (isEndpointUnavailable(error)) {
+        return request<DocumentResponse>(`/documents/${documentId}`);
+      }
+      throw error;
+    }
+  },
+
+  async getDocumentReport(documentId: string) {
+    const variants: Array<() => Promise<ContractReport>> = [
+      () => request<ContractReport>(`/documents/${documentId}/report`),
+      () => request<ContractReport>(`/report/${documentId}`),
+      () =>
+        request<ContractReport>("/orchestrate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ document_id: documentId })
+        })
+    ];
+
+    let lastError: unknown;
+    for (const run of variants) {
+      try {
+        return await run();
+      } catch (error) {
+        lastError = error;
+        if (!isEndpointUnavailable(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError ?? new ApiError("Отчет по документу недоступен", 500);
+  },
+
+  async askDocumentQuestion(documentId: string, question: string) {
+    const body = JSON.stringify({ question });
+    const withDocument = JSON.stringify({ document_id: documentId, question });
+
+    const variants: Array<() => Promise<DocumentQuestionResponse>> = [
+      () =>
+        request<DocumentQuestionResponse>(`/documents/${documentId}/questions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body
+        }),
+      () =>
+        request<DocumentQuestionResponse>(`/documents/${documentId}/qa`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body
+        }),
+      () =>
+        request<DocumentQuestionResponse>("/qa", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: withDocument
+        }),
+      () =>
+        request<DocumentQuestionResponse>("/questions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: withDocument
+        })
+    ];
+
+    let lastError: unknown;
+    for (const run of variants) {
+      try {
+        return await run();
+      } catch (error) {
+        lastError = error;
+        if (!isEndpointUnavailable(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError ?? new ApiError("Q&A endpoint недоступен", 500);
+  },
+
+  async getLegalSources(documentId: string) {
+    const variants: Array<() => Promise<LegalSource[]>> = [
+      () => request<LegalSource[]>(`/documents/${documentId}/legal-sources`),
+      () => request<LegalSource[]>(`/legal-sources/${documentId}`)
+    ];
+
+    for (const run of variants) {
+      try {
+        return await run();
+      } catch (error) {
+        if (!isEndpointUnavailable(error)) {
+          throw error;
+        }
+      }
+    }
+
+    try {
+      const report = await this.getDocumentReport(documentId);
+      return report.legal_sources ?? [];
+    } catch {
+      return [];
+    }
+  },
+
+  getDocuments() {
+    return request<DocumentResponse[]>("/documents");
+  },
+
+  getDocument(documentId: string) {
+    return request<DocumentResponse>(`/documents/${documentId}`);
+  },
+
+>>>>>>> feature/backend-mvp
   register(payload: RegisterRequest) {
     return request<UserResponse>("/auth/register", {
       method: "POST",
@@ -122,6 +377,10 @@ export const apiClient = {
       body: JSON.stringify(payload)
     });
   },
+<<<<<<< HEAD
+=======
+
+>>>>>>> feature/backend-mvp
   login(payload: LoginRequest) {
     return request<AuthResponse>("/auth/login", {
       method: "POST",
@@ -131,6 +390,10 @@ export const apiClient = {
       body: JSON.stringify(payload)
     });
   },
+<<<<<<< HEAD
+=======
+
+>>>>>>> feature/backend-mvp
   getMe() {
     return request<UserResponse>("/auth/me");
   }

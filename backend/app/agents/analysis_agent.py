@@ -1,6 +1,10 @@
 from app.services.chunking_service import chunk_text
 from app.services.llm_service import analyze_contract
 from app.services.rag_service import save_chunks, semantic_retrieval
+<<<<<<< HEAD
+=======
+from app.config import settings
+>>>>>>> feature/backend-mvp
 
 RISK_QUERY = (
     "contract risks, obligations, penalties, payment terms, termination conditions"
@@ -30,6 +34,7 @@ class AnalysisAgent:
 
     def analyze_risks(self, evidence: list[dict]) -> dict:
         context = "\n\n".join([str(item.get("text", "")) for item in evidence if item.get("text")])
+<<<<<<< HEAD
         return analyze_contract(context=context)
 
     def extract_key_terms(self, evidence: list[dict]) -> list[dict]:
@@ -47,6 +52,20 @@ class AnalysisAgent:
                     "page": item.get("metadata", {}).get("page"),
                 }
             )
+=======
+        return analyze_contract(context=context, model=settings.openrouter_model_risk)
+
+    def extract_key_terms(self, evidence: list[dict]) -> list[dict]:
+        context = "\n\n".join([str(item.get("text", "")) for item in evidence if item.get("text")])
+        result = analyze_contract(context=context, model=settings.openrouter_model_key_terms)
+        terms: list[dict] = []
+        for idx, risk_like_item in enumerate(list(result.get("risks", []))[:5], start=1):
+            title = str(risk_like_item.get("type", f"Term {idx}")).strip() or f"Term {idx}"
+            value = str(risk_like_item.get("description", "")).strip()
+            if not value:
+                continue
+            terms.append({"title": title, "value": value[:200], "quote": value[:200], "page": None})
+>>>>>>> feature/backend-mvp
         return terms
 
     def assemble_report(self, document_id: str, risk_output: dict, key_terms: list[dict], used_ocr: bool, chunks_count: int) -> dict:
@@ -65,7 +84,13 @@ class AnalysisAgent:
             "overall_risk": overall,
             "risks": risks,
             "key_terms": key_terms,
+<<<<<<< HEAD
             "disclaimer": "Система не заменяет профессионального юриста.",
+=======
+            "legal_sources": [],
+            "warnings": [],
+            "disclaimer": "Система выполняет предварительный анализ и не заменяет профессионального юриста.",
+>>>>>>> feature/backend-mvp
             "used_ocr": used_ocr,
             "chunks_count": chunks_count,
         }

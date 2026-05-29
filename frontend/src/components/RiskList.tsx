@@ -1,9 +1,15 @@
+<<<<<<< HEAD
 import type { Risk } from "../types/api";
+=======
+﻿import type { Risk } from "../types/api";
+import { RiskCard } from "./RiskCard";
+>>>>>>> feature/backend-mvp
 
 type RiskListProps = {
   risks: Risk[];
 };
 
+<<<<<<< HEAD
 function severityClass(severity: Risk["severity"]): string {
   switch (severity) {
     case "low":
@@ -19,6 +25,8 @@ function severityClass(severity: Risk["severity"]): string {
   }
 }
 
+=======
+>>>>>>> feature/backend-mvp
 export function RiskList({ risks }: RiskListProps) {
   if (!risks.length) {
     return <p className="muted">Риски не обнаружены.</p>;
@@ -27,6 +35,7 @@ export function RiskList({ risks }: RiskListProps) {
   return (
     <div className="risk-list">
       {risks.map((risk, index) => (
+<<<<<<< HEAD
         <article className="risk-card" key={`${risk.type}-${index}`}>
           <div className="risk-card-head">
             <h4>{risk.type}</h4>
@@ -39,6 +48,9 @@ export function RiskList({ risks }: RiskListProps) {
             </p>
           ) : null}
         </article>
+=======
+        <RiskCard risk={risk} key={`${risk.title}-${index}`} />
+>>>>>>> feature/backend-mvp
       ))}
     </div>
   );

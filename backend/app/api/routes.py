@@ -28,8 +28,18 @@ from app.models.schemas import (
     UploadResponse,
     OrchestrateRequest,
     OrchestrateResponse,
+<<<<<<< HEAD
 )
 from app.agents.orchestrator import Orchestrator
+=======
+    DocumentUploadResponse,
+    DocumentStatusResponse,
+    DocumentAskRequest,
+    DocumentAskResponse,
+)
+from app.agents.orchestrator import Orchestrator
+from app.agents.document_qa_agent import DocumentQAAgent
+>>>>>>> feature/backend-mvp
 from app.services.chunking_service import chunk_text
 from app.services.document_processor import process_document
 from app.services.file_service import save_uploaded_file
@@ -52,10 +62,18 @@ from app.services.document_repository import (
 from app.services.rag_service import save_chunks, semantic_retrieval
 from app.services.text_extractor import extract_text
 from app.services.ocr_service import run_ocr
+<<<<<<< HEAD
+=======
+from app.services.report_store import get_report
+>>>>>>> feature/backend-mvp
 from app.models.db_models import User
 
 router = APIRouter()
 orchestrator = Orchestrator()
+<<<<<<< HEAD
+=======
+document_qa_agent = DocumentQAAgent()
+>>>>>>> feature/backend-mvp
 
 
 def _get_owned_document_or_404(db: Session, document_id: str, current_user: User):
@@ -204,6 +222,123 @@ async def upload_file(
         status="uploaded",
         file_path=saved_path,
     )
+
+
+@router.post("/documents", response_model=DocumentUploadResponse)
+async def upload_document(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DocumentUploadResponse:
+    result = await upload_file(file=file, db=db, current_user=current_user)
+    return DocumentUploadResponse(
+        document_id=result.document_id,
+        filename=result.filename,
+        status=result.status,
+    )
+
+
+@router.get("/documents/{document_id}/status", response_model=DocumentStatusResponse)
+async def get_document_status(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DocumentStatusResponse:
+    document = _get_owned_document_or_404(db, document_id, current_user)
+    return DocumentStatusResponse(document_id=document.id, status=document.status)
+
+
+@router.post("/documents/{document_id}/analyze", response_model=OrchestrateResponse)
+async def analyze_document_with_agents(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OrchestrateResponse:
+    return await run_orchestrator(
+        payload=OrchestrateRequest(document_id=document_id),
+        db=db,
+        current_user=current_user,
+    )
+
+
+@router.get("/documents/{document_id}/report", response_model=OrchestrateResponse)
+async def get_document_report(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OrchestrateResponse:
+    _get_owned_document_or_404(db, document_id, current_user)
+    report = get_report(document_id)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found. Run /api/documents/{document_id}/analyze first.",
+        )
+    return OrchestrateResponse(**report)
+
+
+@router.post("/documents/{document_id}/ask", response_model=DocumentAskResponse)
+async def ask_document_question(
+    document_id: str,
+    payload: DocumentAskRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DocumentAskResponse:
+    _get_owned_document_or_404(db, document_id, current_user)
+    try:
+        retrieved = semantic_retrieval(
+            query=payload.question,
+            document_id=document_id,
+            top_k=5,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve context for question answering.",
+        ) from exc
+
+    context = "\n\n".join(str(item.get("text", "")) for item in retrieved if item.get("text"))
+    if not context.strip():
+        context = "No indexed context was found for this document."
+
+    try:
+        qa = document_qa_agent.run(question=payload.question, context=context)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate document answer.",
+        ) from exc
+
+    return DocumentAskResponse(
+        document_id=document_id,
+        status="answered",
+        question=payload.question,
+        answer=str(qa.get("answer", "")),
+        model=str(qa.get("model", "")),
+        fallback_model=str(qa.get("fallback_model", "")),
+    )
+
+
+@router.get("/documents/{document_id}/legal-sources")
+async def get_document_legal_sources(
+    document_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    _get_owned_document_or_404(db, document_id, current_user)
+    report = get_report(document_id)
+    if report is None:
+        return {"document_id": document_id, "legal_sources": [], "warnings": []}
+    return {
+        "document_id": document_id,
+        "legal_sources": list(report.get("legal_sources", [])),
+        "warnings": list(report.get("warnings", [])),
+    }
 
 
 @router.post("/extract", response_model=ExtractResponse)

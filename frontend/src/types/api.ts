@@ -26,16 +26,60 @@ export type AnalyzeRequest = {
 };
 
 export type Risk = {
+<<<<<<< HEAD
+=======
+  title: string;
+  severity: "low" | "medium" | "high" | "critical";
+  explanation: string;
+  quote?: string;
+  page?: number | null;
+};
+
+export type KeyTerm = {
+  title: string;
+  value: string;
+  quote?: string;
+  page?: number | null;
+};
+
+export type LegalSource = {
+  title: string;
+  url: string;
+  snippet: string;
+  source_type: "consultant_plus" | "garant" | "pravo_gov" | "other_public_source";
+  relevance: "low" | "medium" | "high" | "unknown";
+};
+
+export type ContractReport = {
+  document_id: string;
+  status: string;
+  summary: string;
+  overall_risk: "low" | "medium" | "high" | "critical" | "unknown";
+  risks: Risk[];
+  key_terms: KeyTerm[];
+  legal_sources: LegalSource[];
+  disclaimer: string;
+};
+
+export type LegacyAnalyzeRisk = {
+>>>>>>> feature/backend-mvp
   type: string;
   severity: "low" | "medium" | "high" | "critical";
   description: string;
   recommendation?: string;
 };
 
+<<<<<<< HEAD
 export type AnalyzeResponse = {
   status: string;
   summary: string;
   risks: Risk[];
+=======
+export type LegacyAnalyzeResponse = {
+  status: string;
+  summary: string;
+  risks: LegacyAnalyzeRisk[];
+>>>>>>> feature/backend-mvp
 };
 
 export type DocumentResponse = {
@@ -51,6 +95,23 @@ export type HealthResponse = {
   status: string;
 };
 
+<<<<<<< HEAD
+=======
+export type Citation = {
+  quote: string;
+  page?: number | null;
+};
+
+export type DocumentQuestionResponse = {
+  document_id: string;
+  question: string;
+  answer: string;
+  confidence: number;
+  citations: Citation[];
+  disclaimer: string;
+};
+
+>>>>>>> feature/backend-mvp
 export type RegisterRequest = {
   username: string;
   email: string;

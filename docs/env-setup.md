@@ -28,6 +28,16 @@ cp frontend/.env.example frontend/.env
 
 FastAPI loads `backend/.env` by absolute path (`app/config.py`).
 
+## OCR settings (hybrid provider)
+
+- `OCR_PROVIDER=hybrid` — uses PDF text layer first, then OCR for weak/empty pages.
+- `OCR_USE_VLM=true` — enables OpenRouter Vision OCR for scanned/low-quality pages.
+- `OPENROUTER_MODEL_OCR_VLM` — optional dedicated Vision model override.
+- `OCR_VLM_MAX_PAGES=20` — max pages for VLM OCR pass.
+- `OCR_VLM_DPI=160` — page rendering DPI for Vision OCR.
+- `OCR_VLM_TIMEOUT_SECONDS=120` — timeout for one VLM OCR request.
+- `OCR_MIN_TEXT_CHARS_PER_PAGE=50` — threshold to treat page text layer as too weak.
+
 ## Security
 
 - Do not commit `backend/.env` or `frontend/.env`.

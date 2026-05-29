@@ -1,4 +1,4 @@
-import type { KeyTerm } from "../types/api";
+﻿import type { KeyTerm } from "../types/api";
 import { EvidenceQuote } from "./EvidenceQuote";
 
 type KeyTermsListProps = {
@@ -18,7 +18,7 @@ export function KeyTermsList({ terms }: KeyTermsListProps) {
             <h4>{term.title}</h4>
             <span className="term-value">{term.value}</span>
           </div>
-          <EvidenceQuote quote={term.quote} page={term.page} />
+          <EvidenceQuote quote={term.quote} page={term.page} sourceLabel="Цитата" />
         </article>
       ))}
     </div>

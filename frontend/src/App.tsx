@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
-import { DashboardPage } from "./pages/DashboardPage";
 import { AuthPage } from "./pages/AuthPage";
-import { ApiError, apiClient, clearAuthToken, hasAuthToken } from "./services/api";
+import { DashboardPage } from "./pages/DashboardPage";
+import { ApiError, clearAuthToken, hasAuthToken, apiClient } from "./services/api";
 import type { UserResponse } from "./types/api";
 
 function App() {

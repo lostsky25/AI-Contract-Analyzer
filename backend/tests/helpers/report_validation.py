@@ -52,8 +52,8 @@ def validate_report_schema(payload: dict[str, Any]) -> list[str]:
             continue
         if not str(risk.get("title", "")).strip():
             errors.append(f"risks[{index}].title is required")
-        if not str(risk.get("quote", "")).strip():
-            errors.append(f"risks[{index}].quote is required")
+        if not isinstance(risk.get("quote", ""), str):
+            errors.append(f"risks[{index}].quote must be a string")
 
     for index, term in enumerate(payload.get("key_terms", [])):
         if not isinstance(term, dict):

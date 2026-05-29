@@ -22,7 +22,6 @@ class UploadResponse(BaseModel):
 
 class ExtractRequest(BaseModel):
     document_id: str
-    file_path: str
 
 
 class ExtractResponse(BaseModel):
@@ -34,7 +33,6 @@ class ExtractResponse(BaseModel):
 
 class ProcessRequest(BaseModel):
     document_id: str
-    file_path: str
 
 
 class ProcessResponse(BaseModel):
@@ -45,6 +43,7 @@ class ProcessResponse(BaseModel):
     text_length: int
     chunks_count: int
     used_ocr: bool
+    warnings: list[str] = Field(default_factory=list)
 
 
 class ChunkRequest(BaseModel):
@@ -102,7 +101,6 @@ class RetrieveResponse(BaseModel):
 
 class OcrRequest(BaseModel):
     document_id: str
-    file_path: str
 
 
 class OcrResponse(BaseModel):

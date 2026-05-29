@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, apiClient } from "../services/api";
 import type {
@@ -14,18 +14,25 @@ import type {
 type AsyncState = "idle" | "loading" | "success" | "error";
 
 type PipelineError = {
-  stage: "health" | "upload" | "process" | "analyze" | "documents" | "question";
+  stage: "health" | "upload" | "process" | "analyze" | "documents" | "question" | "report";
   message: string;
 } | null;
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = [".pdf", ".docx"];
-const DEFAULT_DISCLAIMER =
-  "Система выполняет предварительный анализ и не заменяет профессионального юриста.";
+const DEFAULT_DISCLAIMER = "Система выполняет предварительный анализ и не заменяет профессионального юриста.";
+
+const REPORT_READY_STATUSES = new Set(["done", "done_with_warnings", "analyzed"]);
+const PROCESS_NEEDED_STATUSES = new Set(["uploaded", "failed_processing"]);
+const BUSY_DOCUMENT_STATUSES = new Set(["processing", "analyzing"]);
 
 function getFileExtension(fileName: string): string {
   const parts = fileName.toLowerCase().split(".");
   return parts.length > 1 ? `.${parts[parts.length - 1]}` : "";
+}
+
+function normalizeStatus(status: string | null | undefined): string {
+  return String(status ?? "").trim().toLowerCase();
 }
 
 function parseError(error: unknown): string {
@@ -59,13 +66,11 @@ function resolveOverallRisk(risks: Risk[]): ContractReport["overall_risk"] {
 
 function normalizeOrchestratorRisk(risk: Record<string, unknown>): Risk {
   const title = String(risk.title ?? risk.type ?? "Risk").trim() || "Risk";
-  const explanation = String(
-    risk.explanation ?? risk.description ?? ""
-  ).trim();
+  const explanation = String(risk.explanation ?? risk.description ?? "").trim();
   const severityRaw = String(risk.severity ?? "unknown").toLowerCase();
-  const severity = (
-    ["low", "medium", "high", "critical", "unknown"] as const
-  ).includes(severityRaw as Risk["severity"])
+  const severity = (["low", "medium", "high", "critical", "unknown"] as const).includes(
+    severityRaw as Risk["severity"]
+  )
     ? (severityRaw as Risk["severity"])
     : "unknown";
 
@@ -73,19 +78,14 @@ function normalizeOrchestratorRisk(risk: Record<string, unknown>): Risk {
     title,
     severity,
     explanation,
-    quote: String(risk.quote ?? risk.recommendation ?? explanation).trim() || undefined,
+    quote: String(risk.quote ?? risk.recommendation ?? "").trim() || undefined,
     page: typeof risk.page === "number" ? risk.page : null
   };
 }
 
-function normalizeReport(
-  documentId: string,
-  response: ContractReport | LegacyAnalyzeResponse
-): ContractReport {
+function normalizeReport(documentId: string, response: ContractReport | LegacyAnalyzeResponse): ContractReport {
   if ("overall_risk" in response) {
-    const risks = (response.risks ?? []).map((risk) =>
-      normalizeOrchestratorRisk(risk as unknown as Record<string, unknown>)
-    );
+    const risks = (response.risks ?? []).map((risk) => normalizeOrchestratorRisk(risk as Record<string, unknown>));
     return {
       ...response,
       legal_sources: response.legal_sources ?? [],
@@ -108,6 +108,24 @@ function normalizeReport(
   };
 }
 
+function toUploadResult(document: DocumentResponse): UploadResponse {
+  return {
+    document_id: document.document_id,
+    filename: document.filename,
+    status: document.status
+  };
+}
+
+function toDocumentResponse(upload: UploadResponse): DocumentResponse {
+  return {
+    document_id: upload.document_id,
+    filename: upload.filename,
+    status: upload.status,
+    text_length: null,
+    created_at: new Date().toISOString()
+  };
+}
+
 export function useContractAnalysis() {
   const [healthState, setHealthState] = useState<AsyncState>("idle");
   const [uploadState, setUploadState] = useState<AsyncState>("idle");
@@ -118,16 +136,59 @@ export function useContractAnalysis() {
 
   const [error, setError] = useState<PipelineError>(null);
   const [documents, setDocuments] = useState<DocumentResponse[]>([]);
+  const [selectedDocument, setSelectedDocument] = useState<DocumentResponse | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
   const [processResult, setProcessResult] = useState<ProcessResponse | null>(null);
   const [report, setReport] = useState<ContractReport | null>(null);
+  const [reportCache, setReportCache] = useState<Record<string, ContractReport>>({});
+  const [openingReportDocumentId, setOpeningReportDocumentId] = useState<string | null>(null);
   const [analysisInput, setAnalysisInput] = useState("");
+  const reportOpenRequestIdRef = useRef(0);
 
   const [questionInput, setQuestionInput] = useState("");
   const [questionResult, setQuestionResult] = useState<DocumentQuestionResponse | null>(null);
   const [legalWebSearchEnabled, setLegalWebSearchEnabled] = useState(true);
+
+  const syncDocumentInList = useCallback((document: DocumentResponse) => {
+    setDocuments((previous) => {
+      const hasDoc = previous.some((item) => item.document_id === document.document_id);
+      if (!hasDoc) {
+        return [document, ...previous];
+      }
+      return previous.map((item) => (item.document_id === document.document_id ? document : item));
+    });
+  }, []);
+
+  const resolveDocumentStatus = useCallback(async (document: DocumentResponse): Promise<DocumentResponse> => {
+    try {
+      return await apiClient.getDocumentStatus(document.document_id);
+    } catch {
+      return document;
+    }
+  }, []);
+
+  const loadDocuments = useCallback(async () => {
+    setDocumentsState("loading");
+    try {
+      const result = await apiClient.getDocuments();
+      setDocuments(result);
+      setSelectedDocument((prev) => {
+        if (!prev) return prev;
+        const next = result.find((doc) => doc.document_id === prev.document_id);
+        if (next) {
+          setUploadResult(toUploadResult(next));
+          return next;
+        }
+        return prev;
+      });
+      setDocumentsState("success");
+    } catch (errorValue) {
+      setDocumentsState("error");
+      setError({ stage: "documents", message: parseError(errorValue) });
+    }
+  }, []);
 
   const checkHealth = useCallback(async () => {
     setHealthState("loading");
@@ -138,18 +199,6 @@ export function useContractAnalysis() {
     } catch (errorValue) {
       setHealthState("error");
       setError({ stage: "health", message: parseError(errorValue) });
-    }
-  }, []);
-
-  const loadDocuments = useCallback(async () => {
-    setDocumentsState("loading");
-    try {
-      const result = await apiClient.getDocuments();
-      setDocuments(result);
-      setDocumentsState("success");
-    } catch (errorValue) {
-      setDocumentsState("error");
-      setError({ stage: "documents", message: parseError(errorValue) });
     }
   }, []);
 
@@ -200,77 +249,281 @@ export function useContractAnalysis() {
 
     try {
       const result = await apiClient.uploadDocument(selectedFile);
+      const optimistic = toDocumentResponse(result);
       setUploadResult(result);
+      setSelectedDocument(optimistic);
+      setSelectedFile(null);
+      syncDocumentInList(optimistic);
       setUploadState("success");
       await loadDocuments();
     } catch (errorValue) {
       setUploadState("error");
       setError({ stage: "upload", message: parseError(errorValue) });
     }
-  }, [loadDocuments, selectedFile]);
+  }, [loadDocuments, selectedFile, syncDocumentInList]);
 
-  const processDocument = useCallback(async () => {
-    if (!uploadResult) {
-      setError({ stage: "process", message: "Сначала загрузите документ." });
-      return;
-    }
-
-    setProcessState("loading");
-    setAnalyzeState("idle");
-    setReport(null);
-    setError(null);
-
+  const loadReportForDocument = useCallback(async (document: DocumentResponse): Promise<ContractReport | null> => {
     try {
-      const result = await apiClient.processDocument({
-        document_id: uploadResult.document_id,
-        file_path: uploadResult.file_path ?? ""
-      });
-      setProcessResult(result);
-      setAnalysisInput(result.full_text ?? result.text_preview ?? "");
-      setProcessState("success");
-      await loadDocuments();
-    } catch (errorValue) {
-      setProcessState("error");
-      setError({ stage: "process", message: parseError(errorValue) });
+      const loadedReport = await apiClient.fetchExistingReport(document.document_id);
+      return normalizeReport(document.document_id, loadedReport);
+    } catch {
+      return null;
     }
-  }, [loadDocuments, uploadResult]);
+  }, []);
 
-  const analyzeDocument = useCallback(async () => {
-    if (!uploadResult) {
-      setError({ stage: "analyze", message: "Нет document_id. Выполните upload." });
+  const selectDocument = useCallback(
+    async (document: DocumentResponse) => {
+      setError(null);
+      setSelectedFile(null);
+      setProcessResult(null);
+      setQuestionInput("");
+      setQuestionResult(null);
+      setAnalysisInput("");
+      setReport(null);
+      setAnalyzeState("idle");
+      setProcessState("idle");
+
+      const freshDocument = await resolveDocumentStatus(document);
+      setSelectedDocument(freshDocument);
+      setUploadResult(toUploadResult(freshDocument));
+      syncDocumentInList(freshDocument);
+
+      const normalized = normalizeStatus(freshDocument.status);
+      if (normalized === "processed" || normalized === "extracted" || normalized === "indexed") {
+        setProcessState("success");
+      }
+
+      if (REPORT_READY_STATUSES.has(normalized)) {
+        setAnalyzeState("loading");
+        const loadedReport = await loadReportForDocument(freshDocument);
+        if (loadedReport) {
+          setReport(loadedReport);
+          setReportCache((previous) => ({
+            ...previous,
+            [freshDocument.document_id]: loadedReport
+          }));
+          setAnalyzeState("success");
+          setSelectedDocument((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: loadedReport.status
+                }
+              : prev
+          );
+        } else {
+          setAnalyzeState("idle");
+          setError({ stage: "report", message: "Отчет для этого документа пока не сформирован." });
+        }
+      }
+    },
+    [loadReportForDocument, resolveDocumentStatus, syncDocumentInList]
+  );
+
+  const openReportForDocument = useCallback(
+    async (document: DocumentResponse) => {
+      const requestId = reportOpenRequestIdRef.current + 1;
+      reportOpenRequestIdRef.current = requestId;
+
+      setError(null);
+      setSelectedFile(null);
+      setProcessResult(null);
+      setQuestionInput("");
+      setQuestionResult(null);
+      setAnalysisInput("");
+      setProcessState("idle");
+      setOpeningReportDocumentId(document.document_id);
+
+      const cachedReport = reportCache[document.document_id];
+      if (cachedReport) {
+        setReport(cachedReport);
+        setAnalyzeState("success");
+      } else {
+        setAnalyzeState("loading");
+      }
+
+      const freshDocument = await resolveDocumentStatus(document);
+      if (requestId !== reportOpenRequestIdRef.current) {
+        return;
+      }
+      setSelectedDocument(freshDocument);
+      setUploadResult(toUploadResult(freshDocument));
+      syncDocumentInList(freshDocument);
+
+      try {
+        const loadedReportRaw = await apiClient.fetchExistingReport(freshDocument.document_id);
+        if (requestId !== reportOpenRequestIdRef.current) {
+          return;
+        }
+        const loadedReport = normalizeReport(freshDocument.document_id, loadedReportRaw);
+        setReport(loadedReport);
+        setReportCache((previous) => ({
+          ...previous,
+          [freshDocument.document_id]: loadedReport
+        }));
+        setAnalyzeState("success");
+        setSelectedDocument((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: loadedReport.status
+              }
+            : prev
+        );
+      } catch (errorValue) {
+        if (requestId !== reportOpenRequestIdRef.current) {
+          return;
+        }
+        if (cachedReport) {
+          setAnalyzeState("success");
+          setError({
+            stage: "report",
+            message: "Не удалось обновить отчет с сервера. Показана последняя сохраненная версия."
+          });
+        } else {
+          setAnalyzeState("error");
+          setError({
+            stage: "report",
+            message: parseError(errorValue) || "Отчет для этого документа пока не сформирован."
+          });
+        }
+      } finally {
+        if (requestId === reportOpenRequestIdRef.current) {
+          setOpeningReportDocumentId(null);
+        }
+      }
+    },
+    [reportCache, resolveDocumentStatus, syncDocumentInList]
+  );
+
+  const runAnalysisPipeline = useCallback(async () => {
+    const activeDocument = selectedDocument ?? (uploadResult ? toDocumentResponse(uploadResult) : null);
+
+    if (!activeDocument) {
+      setError({ stage: "analyze", message: "Загрузите документ перед запуском анализа." });
       return;
+    }
+
+    setError(null);
+    setQuestionState("idle");
+    setQuestionResult(null);
+
+    let current = await resolveDocumentStatus(activeDocument);
+    const currentStatus = normalizeStatus(current.status);
+
+    setSelectedDocument(current);
+    setUploadResult(toUploadResult(current));
+    syncDocumentInList(current);
+
+    if (BUSY_DOCUMENT_STATUSES.has(currentStatus) || processState === "loading" || analyzeState === "loading") {
+      return;
+    }
+
+    let legacyText = analysisInput;
+
+    if (PROCESS_NEEDED_STATUSES.has(currentStatus) || (currentStatus === "failed" && !current.text_length)) {
+      setProcessState("loading");
+      try {
+        const processed = await apiClient.processDocument({
+          document_id: current.document_id
+        });
+
+        legacyText = processed.full_text || processed.text_preview || "";
+        setProcessResult(processed);
+        setAnalysisInput(legacyText);
+        setProcessState("success");
+
+        current = {
+          ...current,
+          status: processed.status,
+          text_length: processed.text_length
+        };
+        setSelectedDocument(current);
+        setUploadResult(toUploadResult(current));
+        syncDocumentInList(current);
+      } catch (errorValue) {
+        setProcessState("error");
+        const message = parseError(errorValue);
+        const lower = message.toLowerCase();
+        const isRecoverableFileError =
+          errorValue instanceof ApiError && [400, 404].includes(errorValue.status ?? 0);
+        const isFileUnavailable =
+          lower.includes("file not found") ||
+          lower.includes("document not found") ||
+          lower.includes("not found");
+        setError({
+          stage: "process",
+          message: isRecoverableFileError || isFileUnavailable
+            ? "Не удалось обработать документ. Возможно, файл недоступен на сервере."
+            : message
+        });
+        return;
+      }
+    } else if (["processed", "extracted", "indexed", "done", "done_with_warnings", "analyzed"].includes(currentStatus)) {
+      setProcessState("success");
+    } else {
+      setProcessState("idle");
     }
 
     setAnalyzeState("loading");
-    setQuestionState("idle");
-    setQuestionResult(null);
-    setError(null);
-
     try {
-      const analyzeResponse = await apiClient.analyzeDocument(uploadResult.document_id, {
-        legacyText: analysisInput,
+      const analyzedResponse = await apiClient.analyzeDocument(current.document_id, {
+        legacyText,
         preferOrchestrator: true,
         legalWebSearchEnabled
       });
 
-      const normalizedReport = normalizeReport(uploadResult.document_id, analyzeResponse);
+      let normalizedReport = normalizeReport(current.document_id, analyzedResponse);
 
-      if (
-        legalWebSearchEnabled &&
-        !normalizedReport.legal_sources?.length
-      ) {
-        const legalSources = await apiClient.getLegalSources(uploadResult.document_id);
+      if (legalWebSearchEnabled && !normalizedReport.legal_sources?.length) {
+        const legalSources = await apiClient.getLegalSources(current.document_id);
         normalizedReport.legal_sources = legalSources;
       }
 
+      const endpointReport = await loadReportForDocument(current);
+      if (endpointReport) {
+        normalizedReport = endpointReport;
+      }
+
       setReport(normalizedReport);
+      setReportCache((previous) => ({
+        ...previous,
+        [current.document_id]: normalizedReport
+      }));
       setAnalyzeState("success");
+
+      current = {
+        ...current,
+        status: normalizedReport.status
+      };
+      setSelectedDocument(current);
+      setUploadResult(toUploadResult(current));
+      syncDocumentInList(current);
       await loadDocuments();
     } catch (errorValue) {
       setAnalyzeState("error");
       setError({ stage: "analyze", message: parseError(errorValue) });
     }
-  }, [analysisInput, legalWebSearchEnabled, loadDocuments, uploadResult]);
+  }, [
+    analysisInput,
+    analyzeState,
+    legalWebSearchEnabled,
+    loadDocuments,
+    loadReportForDocument,
+    processState,
+    resolveDocumentStatus,
+    selectedDocument,
+    syncDocumentInList,
+    uploadResult
+  ]);
+
+  const processDocument = useCallback(async () => {
+    await runAnalysisPipeline();
+  }, [runAnalysisPipeline]);
+
+  const analyzeDocument = useCallback(async () => {
+    await runAnalysisPipeline();
+  }, [runAnalysisPipeline]);
 
   const askQuestion = useCallback(async () => {
     if (!uploadResult?.document_id) {
@@ -286,10 +539,7 @@ export function useContractAnalysis() {
     setError(null);
 
     try {
-      const result = await apiClient.askDocumentQuestion(
-        uploadResult.document_id,
-        questionInput
-      );
+      const result = await apiClient.askDocumentQuestion(uploadResult.document_id, questionInput);
       setQuestionResult({
         ...result,
         confidence: result.confidence ?? "unknown",
@@ -304,36 +554,32 @@ export function useContractAnalysis() {
   }, [questionInput, uploadResult?.document_id]);
 
   const refreshSelectedDocument = useCallback(async () => {
-    if (!uploadResult?.document_id) {
+    const activeDocument = selectedDocument ?? (uploadResult ? toDocumentResponse(uploadResult) : null);
+    if (!activeDocument) {
       return;
     }
-    try {
-      const fresh = await apiClient.getDocumentStatus(uploadResult.document_id);
-      setDocuments((previous) => {
-        const hasDoc = previous.some((doc) => doc.document_id === fresh.document_id);
-        if (!hasDoc) {
-          return [fresh, ...previous];
-        }
-        return previous.map((doc) =>
-          doc.document_id === fresh.document_id ? fresh : doc
-        );
-      });
-    } catch {
-      // Non-blocking refresh.
-    }
-  }, [uploadResult?.document_id]);
 
-  const canProcess = Boolean(uploadResult) && processState !== "loading";
+    const fresh = await resolveDocumentStatus(activeDocument);
+    setSelectedDocument(fresh);
+    setUploadResult(toUploadResult(fresh));
+    syncDocumentInList(fresh);
+  }, [resolveDocumentStatus, selectedDocument, syncDocumentInList, uploadResult]);
+
+  const selectedStatus = report?.status ?? selectedDocument?.status ?? uploadResult?.status ?? "";
+  const normalizedSelectedStatus = normalizeStatus(selectedStatus);
+  const hasSelectedDocument = Boolean(selectedDocument ?? uploadResult);
+  const hasUnuploadedFile = Boolean(selectedFile);
+
+  const canProcess = false;
   const canAnalyze =
-    Boolean(uploadResult) &&
-    (processState === "success" || Boolean(analysisInput.trim())) &&
+    hasSelectedDocument &&
+    !hasUnuploadedFile &&
+    !BUSY_DOCUMENT_STATUSES.has(normalizedSelectedStatus) &&
+    processState !== "loading" &&
     analyzeState !== "loading";
 
   const isBusy = useMemo(
-    () =>
-      [uploadState, processState, analyzeState, questionState].some(
-        (state) => state === "loading"
-      ),
+    () => [uploadState, processState, analyzeState, questionState].some((state) => state === "loading"),
     [analyzeState, processState, questionState, uploadState]
   );
 
@@ -345,15 +591,21 @@ export function useContractAnalysis() {
     documentsState,
     questionState,
     documents,
+    selectedDocument,
     selectedFile,
     uploadResult,
     processResult,
     report,
+    reportCache,
+    openingReportDocumentId,
     analysisInput,
     error,
     isBusy,
     canProcess,
     canAnalyze,
+    selectedStatus: normalizedSelectedStatus,
+    hasSelectedDocument,
+    hasUnuploadedFile,
     questionInput,
     questionResult,
     legalWebSearchEnabled,
@@ -361,12 +613,17 @@ export function useContractAnalysis() {
     setAnalysisInput,
     setQuestionInput,
     pickFile,
+    selectDocument,
     uploadDocument,
     processDocument,
     analyzeDocument,
+    runAnalysisPipeline,
+    openReportForDocument,
     askQuestion,
     checkHealth,
     loadDocuments,
     refreshSelectedDocument
   };
 }
+
+

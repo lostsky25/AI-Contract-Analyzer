@@ -1,4 +1,5 @@
-import type { DocumentQuestionResponse } from "../types/api";
+﻿import type { DocumentQuestionResponse } from "../types/api";
+import { formatRelevanceLabel } from "../utils/labels";
 
 type QuestionsTabProps = {
   questionInput: string;
@@ -7,6 +8,13 @@ type QuestionsTabProps = {
   onQuestionChange: (value: string) => void;
   onAsk: () => void;
 };
+
+function confidenceLabel(value: string): string {
+  if (value === "low" || value === "medium" || value === "high") {
+    return formatRelevanceLabel(value);
+  }
+  return "Неизвестно";
+}
 
 export function QuestionsTab({
   questionInput,
@@ -21,9 +29,7 @@ export function QuestionsTab({
 
   return (
     <div className="questions-tab">
-      <p className="muted">
-        Вкладка вопросов использует ответ backend с confidence, citations и disclaimer.
-      </p>
+      <p className="muted">Задайте вопрос по тексту загруженного договора.</p>
       <div className="qa-form">
         <input
           type="text"
@@ -37,9 +43,7 @@ export function QuestionsTab({
       </div>
 
       {questionState === "error" && !questionResult ? (
-        <p className="muted">
-          Не удалось получить ответ от endpoint вопросов. Попробуйте повторить запрос позже.
-        </p>
+        <p className="muted">Не удалось получить ответ. Попробуйте повторить запрос позже.</p>
       ) : null}
 
       {questionResult ? (
@@ -48,7 +52,7 @@ export function QuestionsTab({
             <strong>Ответ:</strong> {questionResult.answer}
           </p>
           <p>
-            <strong>Уверенность:</strong> <span className={confidenceClass}>{confidence}</span>
+            <strong>Уверенность:</strong> <span className={confidenceClass}>{confidenceLabel(confidence)}</span>
           </p>
           <div>
             <strong>Цитаты:</strong>
@@ -58,7 +62,6 @@ export function QuestionsTab({
                   <li key={`${citation.chunk_id}-${index}`}>
                     {citation.quote}
                     {typeof citation.page === "number" ? ` (стр. ${citation.page})` : ""}
-                    {citation.chunk_id ? ` [${citation.chunk_id}]` : ""}
                   </li>
                 ))}
               </ul>

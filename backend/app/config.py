@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_model: str = "openai/gpt-4o-mini"
     openrouter_ocr_model: str = "nvidia/nemotron-nano-12b-v2-vl"
+    openrouter_model_ocr_vlm: str = ""
     openrouter_model_risk: str = "nvidia/nemotron-3-super-120b-a12b:free"
     openrouter_model_key_terms: str = "google/gemma-4-31b-it:free"
     openrouter_model_qa: str = "nvidia/nemotron-3-super-120b-a12b:free"
@@ -39,6 +40,12 @@ class Settings(BaseSettings):
     )
     tesseract_cmd: str | None = None
     poppler_path: str | None = None
+    ocr_provider: str = "hybrid"
+    ocr_use_vlm: bool = True
+    ocr_vlm_max_pages: int = 20
+    ocr_vlm_dpi: int = 160
+    ocr_vlm_timeout_seconds: int = 120
+    ocr_min_text_chars_per_page: int = 50
     jwt_secret_key: str = "demo-only-change-me"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60

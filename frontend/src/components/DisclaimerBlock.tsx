@@ -1,4 +1,4 @@
-type DisclaimerBlockProps = {
+﻿type DisclaimerBlockProps = {
   text: string;
 };
 

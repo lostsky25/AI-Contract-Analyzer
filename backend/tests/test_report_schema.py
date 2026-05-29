@@ -77,7 +77,7 @@ def test_report_agent_fallback_report() -> None:
     )
 
     assert normalized["status"] == "done_with_warnings"
-    assert normalized["risks"][0]["quote"] == "Detail."
-    assert normalized["key_terms"][0]["quote"] == "30 days"
+    assert normalized["risks"][0]["quote"] == ""
+    assert normalized["key_terms"][0]["quote"] == ""
     assert normalized["disclaimer"]
     assert validate_report_schema({**normalized, "used_ocr": False, "chunks_count": 1}) == []

@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 
 import type { ContractReport, DocumentQuestionResponse } from "../types/api";
+import { EvidenceQuote } from "./EvidenceQuote";
 import { KeyTermsList } from "./KeyTermsList";
 import { LegalSourcesPanel } from "./LegalSourcesPanel";
 import { OverallRiskBadge } from "./OverallRiskBadge";
@@ -18,6 +19,14 @@ type ReportTabsProps = {
   onAskQuestion: () => void;
 };
 
+type QuoteRow = {
+  source: "risk" | "key_term";
+  sourceLabel: string;
+  title: string;
+  quote: string;
+  page: number | null;
+};
+
 export function ReportTabs({
   report,
   questionInput,
@@ -28,24 +37,30 @@ export function ReportTabs({
 }: ReportTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
-  const quoteRows = useMemo(() => {
-    const riskQuotes = report.risks.map((risk) => ({
-      source: "Риск",
+  const quoteRows = useMemo<QuoteRow[]>(() => {
+    const riskQuotes: QuoteRow[] = report.risks.map((risk) => ({
+      source: "risk",
+      sourceLabel: "Риск",
       title: risk.title,
       quote: risk.quote ?? "",
       page: risk.page ?? null
     }));
-    const termQuotes = report.key_terms.map((term) => ({
-      source: "Ключевое условие",
+    const termQuotes: QuoteRow[] = report.key_terms.map((term) => ({
+      source: "key_term",
+      sourceLabel: "Ключевое условие",
       title: term.title,
       quote: term.quote ?? "",
       page: term.page ?? null
     }));
+
     const merged = [...riskQuotes, ...termQuotes].filter((item) => item.quote.trim());
     const seen = new Set<string>();
+
     return merged.filter((item) => {
       const key = `${item.quote.trim().toLowerCase()}::${item.page ?? "none"}`;
-      if (seen.has(key)) return false;
+      if (seen.has(key)) {
+        return false;
+      }
       seen.add(key);
       return true;
     });
@@ -119,13 +134,13 @@ export function ReportTabs({
         {activeTab === "quotes" ? (
           <div className="quotes-list">
             {quoteRows.length ? (
-              quoteRows.map((quote, index) => (
-                <article className="quote-card" key={`${quote.title}-${index}`}>
-                  <p className="quote-title">
-                    <strong>{quote.source}:</strong> {quote.title}
-                  </p>
-                  <blockquote>{quote.quote}</blockquote>
-                  <p className="muted">{quote.page ? `стр. ${quote.page}` : "страница не указана"}</p>
+              quoteRows.map((item, index) => (
+                <article className="quote-card" key={`${item.title}-${index}`}>
+                  <div className="quote-header">
+                    <p className="quote-title">{item.title}</p>
+                    <span className={`quote-source quote-source-${item.source}`}>{item.sourceLabel}</span>
+                  </div>
+                  <EvidenceQuote quote={item.quote} page={item.page} sourceLabel="Цитата" />
                 </article>
               ))
             ) : (

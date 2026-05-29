@@ -2,12 +2,10 @@ export type UploadResponse = {
   document_id: string;
   filename: string;
   status: string;
-  file_path?: string;
 };
 
 export type ProcessRequest = {
   document_id: string;
-  file_path: string;
 };
 
 export type ProcessResponse = {
@@ -18,6 +16,7 @@ export type ProcessResponse = {
   text_length: number;
   chunks_count: number;
   used_ocr: boolean;
+  warnings?: string[];
 };
 
 export type AnalyzeRequest = {
@@ -87,7 +86,6 @@ export type LegacyAnalyzeResponse = {
 export type DocumentResponse = {
   document_id: string;
   filename: string;
-  file_path?: string;
   status: string;
   text_length: number | null;
   created_at: string;

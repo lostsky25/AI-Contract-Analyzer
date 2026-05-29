@@ -1,4 +1,5 @@
 from pathlib import Path
+from io import BytesIO
 
 from app.config import settings
 
@@ -64,6 +65,25 @@ def _extract_image_with_ocr(path: Path) -> str:
     _configure_tesseract(pytesseract)
     try:
         with Image.open(path) as image:
+            return pytesseract.image_to_string(image).strip()
+    except Exception as exc:
+        raise RuntimeError(
+            "OCR execution failed. Verify TESSERACT_CMD configuration."
+        ) from exc
+
+
+def run_ocr_image_bytes(image_bytes: bytes) -> str:
+    try:
+        import pytesseract
+        from PIL import Image
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "OCR dependencies are missing. Install pytesseract and pillow."
+        ) from exc
+
+    _configure_tesseract(pytesseract)
+    try:
+        with Image.open(BytesIO(image_bytes)) as image:
             return pytesseract.image_to_string(image).strip()
     except Exception as exc:
         raise RuntimeError(

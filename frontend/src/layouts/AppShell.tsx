@@ -1,14 +1,41 @@
-import type { PropsWithChildren } from "react";
+﻿import type { PropsWithChildren } from "react";
+
+type NavAction = "home" | "documents" | "reports";
 
 type AppShellProps = PropsWithChildren<{
   backendHealthy: boolean;
   userLabel?: string;
   onLogout?: () => void;
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  searchEnabled?: boolean;
+  activeSection: "home" | "documents" | "reports";
+  onNavigate: (target: NavAction) => void;
 }>;
 
-const NAV_ITEMS = ["Главная", "Документы", "Отчеты", "История", "Настройки"];
+type NavItem = {
+  id: NavAction;
+  label: string;
+  icon: string;
+};
 
-export function AppShell({ backendHealthy, userLabel, onLogout, children }: AppShellProps) {
+const NAV_ITEMS: NavItem[] = [
+  { id: "home", label: "Главная", icon: "⌂" },
+  { id: "documents", label: "Документы", icon: "▦" },
+  { id: "reports", label: "Отчеты", icon: "▤" }
+];
+
+export function AppShell({
+  backendHealthy,
+  userLabel,
+  onLogout,
+  searchQuery,
+  onSearchChange,
+  searchEnabled = false,
+  activeSection,
+  onNavigate,
+  children
+}: AppShellProps) {
   return (
     <div className="app-bg">
       <div className="app-layout">
@@ -22,16 +49,20 @@ export function AppShell({ backendHealthy, userLabel, onLogout, children }: AppS
           </div>
 
           <nav className="sidebar-nav">
-            {NAV_ITEMS.map((item, index) => (
-              <button
-                key={item}
-                className={`sidebar-nav-item ${index === 0 ? "active" : ""}`}
-                type="button"
-              >
-                <span className="sidebar-nav-icon">{index === 0 ? "⌂" : "○"}</span>
-                <span>{item}</span>
-              </button>
-            ))}
+            {NAV_ITEMS.map((item) => {
+              const active = item.id === activeSection;
+              return (
+                <button
+                  key={item.id}
+                  className={`sidebar-nav-item ${active ? "active" : ""}`}
+                  type="button"
+                  onClick={() => onNavigate(item.id)}
+                >
+                  <span className="sidebar-nav-icon">{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </nav>
 
           <div className="sidebar-user">
@@ -49,21 +80,35 @@ export function AppShell({ backendHealthy, userLabel, onLogout, children }: AppS
         </aside>
 
         <div className="workspace">
-          <header className="workspace-topbar">
-            <div className="search-wrap">
-              <span className="search-icon">⌕</span>
-              <input
-                type="search"
-                placeholder="Поиск по документам, отчетам и вопросам..."
-                aria-label="Search"
-              />
-            </div>
+          <header className={`workspace-topbar ${searchEnabled ? "" : "no-search"}`}>
+            {searchEnabled ? (
+              <div className="search-wrap">
+                <span className="search-icon">⌕</span>
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => onSearchChange(event.target.value)}
+                  placeholder="Поиск по последним документам..."
+                  aria-label="Поиск документов"
+                />
+                {searchQuery ? (
+                  <button
+                    className="clear-search-btn"
+                    type="button"
+                    onClick={() => onSearchChange("")}
+                    aria-label="Очистить поиск"
+                  >
+                    Очистить
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             <div className="topbar-right">
               <span className={backendHealthy ? "health ok" : "health down"}>
                 {backendHealthy ? "Backend online" : "Backend offline"}
               </span>
               <button className="icon-btn" type="button" aria-label="Notifications">
-                🔔
+                ⦿
               </button>
               <button className="icon-btn" type="button" aria-label="Help">
                 ?

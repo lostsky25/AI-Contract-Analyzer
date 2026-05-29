@@ -61,7 +61,9 @@ class Orchestrator:
             except Exception:
                 legal_research = {
                     "legal_sources": [],
-                    "warnings": ["Legal web search provider is unavailable."],
+                    "warnings": [
+                        "Проверка публичных правовых источников выполнена с ограничениями."
+                    ],
                 }
             assembled = self.analysis_agent.assemble_report(
                 document_id=document_id,

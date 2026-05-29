@@ -427,6 +427,7 @@ async def process_uploaded_document(
         text_length=result["text_length"],
         chunks_count=saved_count,
         used_ocr=result["used_ocr"],
+        warnings=list(result.get("warnings", [])),
     )
 
 

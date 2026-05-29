@@ -1,4 +1,5 @@
-import type { Risk } from "../types/api";
+﻿import type { Risk } from "../types/api";
+import { formatSeverityLabel } from "../utils/labels";
 import { EvidenceQuote } from "./EvidenceQuote";
 
 type RiskCardProps = {
@@ -14,10 +15,10 @@ export function RiskCard({ risk }: RiskCardProps) {
     <article className="risk-card">
       <div className="risk-card-head">
         <h4>{risk.title}</h4>
-        <span className={severityClass(risk.severity)}>{risk.severity}</span>
+        <span className={severityClass(risk.severity)}>{formatSeverityLabel(risk.severity)}</span>
       </div>
-      <p>{risk.explanation}</p>
-      <EvidenceQuote quote={risk.quote} page={risk.page} />
+      <p className="risk-explanation">{risk.explanation}</p>
+      <EvidenceQuote quote={risk.quote} page={risk.page} sourceLabel="Цитата" />
     </article>
   );
 }

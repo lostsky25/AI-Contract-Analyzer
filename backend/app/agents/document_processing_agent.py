@@ -10,6 +10,7 @@ class DocumentProcessingAgent:
             "metadata": {
                 "file_type": file_path.split(".")[-1].lower(),
                 "ocr_used": result["used_ocr"],
+                "warnings": result.get("warnings", []),
             },
             "raw": result,
         }

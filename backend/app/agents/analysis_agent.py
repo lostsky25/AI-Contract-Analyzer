@@ -1,24 +1,87 @@
-from app.config import settings
-from app.services.llm_service import analyze_contract
+from __future__ import annotations
 
-RISK_QUERY = (
-    "риски договора обязательства штрафы неустойка срок оплаты расторжение"
+from app.agents.normalization_utils import normalize_page, normalize_quote, normalize_whitespace
+from app.config import settings
+from app.services.llm_service import analyze_contract, ask_llm_json
+
+RISK_SYSTEM_PROMPT = (
+    "Ты анализируешь договор и возвращаешь только валидный JSON. "
+    "Все пользовательские поля должны быть на русском языке. "
+    "Не давай юридических консультаций."
 )
-KEY_TERMS_QUERY = (
-    "ключевые условия срок действия оплата ответственность расторжение конфиденциальность"
+RISK_USER_PROMPT_TEMPLATE = """Проанализируй фрагменты договора и верни JSON:
+{{
+  "summary": "краткое резюме договора на русском языке",
+  "risks": [
+    {{
+      "title": "название риска на русском языке",
+      "severity": "low|medium|high|unknown",
+      "explanation": "понятное объяснение риска на русском языке, не дублирует quote",
+      "quote": "короткая дословная цитата из договора (1-3 завершенных предложения)",
+      "page": 1
+    }}
+  ]
+}}
+
+Обязательные правила:
+1. Всегда отвечай на русском языке для полей summary/title/explanation.
+2. Не используй английские названия рисков.
+3. quote должен быть дословным фрагментом из evidence и может оставаться на языке оригинала договора.
+4. Не возвращай весь chunk как quote.
+5. quote должен быть коротким и завершенным, без обрыва на середине слова/фразы.
+6. Если точной цитаты нет, верни quote="" и page=null.
+7. Верни только JSON без пояснений.
+
+Пример русских названий рисков:
+- "Высокие штрафы и приостановка услуг за просрочку оплаты"
+- "Ограничение ответственности исполнителя"
+- "Право исполнителя на немедленное расторжение"
+
+Evidence:
+{context}
+"""
+
+KEY_TERMS_SYSTEM_PROMPT = (
+    "Ты извлекаешь ключевые условия договора и возвращаешь только валидный JSON."
 )
+KEY_TERMS_USER_PROMPT_TEMPLATE = """Извлеки ключевые условия и верни JSON:
+{{
+  "key_terms": [
+    {{
+      "title": "название условия на русском языке",
+      "value": "краткое значение условия на русском языке",
+      "quote": "короткая дословная цитата из договора (1-3 завершенных предложения)",
+      "page": 1
+    }}
+  ]
+}}
+
+Обязательные правила:
+1. Всегда отвечай на русском языке для полей title/value.
+2. Не используй английские названия ключевых условий.
+3. quote должен быть дословным фрагментом из evidence и может оставаться на языке оригинала договора.
+4. Не возвращай весь chunk как quote.
+5. quote должен быть коротким и завершенным, без обрыва на середине слова/фразы.
+6. Если точной цитаты нет, верни quote="" и page=null.
+7. Верни только JSON без пояснений.
+
+Evidence:
+{context}
+"""
 
 
 def _format_evidence_context(evidence: list[dict]) -> str:
     blocks: list[str] = []
-    for item in evidence:
-        text = str(item.get("text", "")).strip()
+    for index, item in enumerate(evidence, start=1):
+        text = normalize_whitespace(item.get("text", ""))
         if not text:
             continue
-        page = item.get("page")
-        chunk_id = item.get("chunk_id", "")
-        page_label = str(page) if page is not None else "unknown"
-        blocks.append(f"[page={page_label}][chunk_id={chunk_id}]\n{text}")
+        page = normalize_page(item.get("page"))
+        chunk_id = str(item.get("chunk_id", "")).strip()
+        page_label = str(page) if page is not None else "null"
+        blocks.append(
+            f"[evidence_id={index}][page={page_label}][chunk_id={chunk_id}]\n{text}"
+        )
     return "\n\n---\n\n".join(blocks)
 
 
@@ -30,89 +93,121 @@ def _pick_evidence(evidence: list[dict], index: int) -> dict | None:
 
 def _normalize_risk_item(item: dict, evidence: list[dict], index: int) -> dict:
     picked = _pick_evidence(evidence, index)
-    title = str(item.get("title") or item.get("type") or f"Risk {index + 1}").strip()
-    explanation = str(
-        item.get("explanation") or item.get("description") or ""
-    ).strip()
-    quote = str(item.get("quote") or "").strip()
-    page = item.get("page")
+    title = normalize_whitespace(item.get("title") or item.get("type") or f"Риск {index + 1}")
+    explanation = normalize_whitespace(item.get("explanation") or item.get("description") or "")
+    quote = normalize_quote(item.get("quote"), max_chars=420, max_sentences=3)
 
-    if picked:
-        if page is None:
-            page = picked.get("page")
-        if not quote:
-            quote = str(picked.get("text", ""))[:500]
+    if quote and explanation.lower() == quote.lower():
+        explanation = ""
+    if not explanation:
+        explanation = "Требуется ручная проверка формулировки договора."
 
-    if not quote and explanation:
-        quote = explanation[:500]
+    page = normalize_page(item.get("page"))
+    if quote and page is None and picked:
+        page = normalize_page(picked.get("page"))
+    if not quote:
+        page = None
 
-    severity = str(item.get("severity", "unknown")).lower()
+    severity = str(item.get("severity", "unknown")).strip().lower()
+    if severity not in {"low", "medium", "high", "unknown"}:
+        severity = "unknown"
 
     return {
-        "title": title or f"Risk {index + 1}",
+        "title": title or f"Риск {index + 1}",
         "severity": severity,
         "explanation": explanation,
-        "quote": quote or "Цитата не найдена в evidence.",
+        "quote": quote,
         "page": page,
     }
 
 
 def _normalize_key_term(item: dict, evidence: list[dict], index: int) -> dict:
     picked = _pick_evidence(evidence, index)
-    title = str(item.get("title") or item.get("type") or f"Term {index + 1}").strip()
-    value = str(item.get("value") or item.get("description") or "").strip()
-    quote = str(item.get("quote") or "").strip()
-    page = item.get("page")
+    title = normalize_whitespace(item.get("title") or item.get("type") or f"Условие {index + 1}")
+    value = normalize_whitespace(item.get("value") or item.get("description") or "")
+    quote = normalize_quote(item.get("quote"), max_chars=420, max_sentences=3)
 
-    if picked:
-        if page is None:
-            page = picked.get("page")
-        if not quote:
-            quote = str(picked.get("text", ""))[:500]
-
+    if not value:
+        value = normalize_whitespace(item.get("meaning") or "")
     if not value and quote:
-        value = quote[:200]
+        value = normalize_whitespace(quote[:180])
+    if not value:
+        value = "Не указано"
+
+    page = normalize_page(item.get("page"))
+    if quote and page is None and picked:
+        page = normalize_page(picked.get("page"))
+    if not quote:
+        page = None
 
     return {
-        "title": title or f"Term {index + 1}",
-        "value": value or "Не указано",
-        "quote": quote or value[:200] or "Цитата не найдена в evidence.",
+        "title": title or f"Условие {index + 1}",
+        "value": value,
+        "quote": quote,
         "page": page,
     }
+
+
+def _ask_json_with_fallback(
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    context: str,
+) -> dict:
+    try:
+        result = ask_llm_json(system_prompt=system_prompt, user_prompt=user_prompt, model=model)
+        return result if isinstance(result, dict) else {}
+    except Exception:
+        fallback = analyze_contract(context=context, model=model)
+        return fallback if isinstance(fallback, dict) else {}
 
 
 class AnalysisAgent:
     def analyze_risks(self, evidence: list[dict]) -> dict:
         context = _format_evidence_context(evidence)
-        result = analyze_contract(context=context, model=settings.openrouter_model_risk)
-        raw_risks = list(result.get("risks", []))
-        result["risks"] = [
-            _normalize_risk_item(risk, evidence, index) for index, risk in enumerate(raw_risks)
-        ]
-        return result
+        user_prompt = RISK_USER_PROMPT_TEMPLATE.format(context=context)
+        result = _ask_json_with_fallback(
+            system_prompt=RISK_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            model=settings.openrouter_model_risk,
+            context=context,
+        )
+        raw_risks = list(result.get("risks", [])) if isinstance(result.get("risks"), list) else []
+        summary = normalize_whitespace(result.get("summary", ""))
+        return {
+            "summary": summary,
+            "risks": [
+                _normalize_risk_item(risk, evidence, index)
+                for index, risk in enumerate(raw_risks)
+                if isinstance(risk, dict)
+            ],
+        }
 
     def extract_key_terms(self, evidence: list[dict]) -> list[dict]:
         context = _format_evidence_context(evidence)
-        result = analyze_contract(
-            context=context, model=settings.openrouter_model_key_terms
+        user_prompt = KEY_TERMS_USER_PROMPT_TEMPLATE.format(context=context)
+        result = _ask_json_with_fallback(
+            system_prompt=KEY_TERMS_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            model=settings.openrouter_model_key_terms,
+            context=context,
         )
+
+        raw_terms = result.get("key_terms")
+        if not isinstance(raw_terms, list):
+            raw_terms = result.get("risks", [])
+        if not isinstance(raw_terms, list):
+            raw_terms = []
+
         terms: list[dict] = []
-        for index, risk_like_item in enumerate(list(result.get("risks", []))[:5], start=0):
-            value = str(risk_like_item.get("description", "")).strip()
-            if not value and not risk_like_item.get("type"):
+        for index, item in enumerate(raw_terms[:8], start=0):
+            if not isinstance(item, dict):
                 continue
-            terms.append(
-                _normalize_key_term(
-                    {
-                        "title": risk_like_item.get("type"),
-                        "value": value,
-                        "description": value,
-                    },
-                    evidence,
-                    index,
-                )
-            )
-        return terms
+            normalized = _normalize_key_term(item, evidence, index)
+            if normalized["title"] and normalized["value"]:
+                terms.append(normalized)
+        return terms[:5]
 
     def assemble_report(
         self,
@@ -123,7 +218,7 @@ class AnalysisAgent:
         chunks_count: int,
     ) -> dict:
         risks = list(risk_output.get("risks", []))
-        severities = {"low": 1, "medium": 2, "high": 3, "critical": 4, "unknown": 0}
+        severities = {"low": 1, "medium": 2, "high": 3, "unknown": 0}
         overall = "low"
         for risk in risks:
             severity = str(risk.get("severity", "low")).lower()
@@ -139,10 +234,7 @@ class AnalysisAgent:
             "key_terms": key_terms,
             "legal_sources": [],
             "warnings": [],
-            "disclaimer": (
-                "Система выполняет предварительный анализ и не заменяет "
-                "профессионального юриста."
-            ),
+            "disclaimer": "Система выполняет предварительный анализ и не заменяет профессионального юриста.",
             "used_ocr": used_ocr,
             "chunks_count": chunks_count,
         }

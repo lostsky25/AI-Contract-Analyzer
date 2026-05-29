@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, ValidationError
 
+from app.agents.normalization_utils import canonicalize_url, classify_source_type_from_url
 from app.config import settings
 from app.services.openrouter_service import extract_json_from_chat_response, post_chat_completion
 
@@ -52,14 +53,7 @@ def parse_allowed_domains(raw: str | None = None) -> list[str]:
 
 
 def classify_source_type(url: str) -> SourceType:
-    host = urlparse(url).netloc.lower()
-    if "consultant.ru" in host:
-        return "consultant_plus"
-    if "garant.ru" in host:
-        return "garant"
-    if "pravo.gov.ru" in host:
-        return "pravo_gov"
-    return "other_public_source"
+    return classify_source_type_from_url(url)  # type: ignore[return-value]
 
 
 def url_matches_allowed_domains(url: str, allowed_domains: list[str]) -> bool:
@@ -156,21 +150,29 @@ def _normalize_sources(
     allowed_domains: list[str],
 ) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
-    seen_urls: set[str] = set()
+    seen_keys: set[tuple[str, str, str]] = set()
 
     for item in sources:
-        url = item.url.strip()
-        if not url or url in seen_urls:
+        url = canonicalize_url(item.url)
+        if not url:
             continue
         if not url_matches_allowed_domains(url, allowed_domains):
             continue
 
         source_type = classify_source_type(url)
+        title = item.title.strip() or url
+        dedupe_key = (
+            url,
+            "",
+            "",
+        )
+        if dedupe_key in seen_keys:
+            continue
 
-        seen_urls.add(url)
+        seen_keys.add(dedupe_key)
         normalized.append(
             {
-                "title": item.title.strip() or url,
+                "title": title,
                 "url": url,
                 "snippet": item.snippet.strip(),
                 "source_type": source_type,

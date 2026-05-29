@@ -225,3 +225,11 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .env
+
+# Frontend generated files
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts

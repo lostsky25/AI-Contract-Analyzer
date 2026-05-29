@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AnalyzeRequest,
   AuthResponse,
   ContractReport,
@@ -29,11 +29,13 @@ const AUTH_TOKEN_KEY = "auth_token";
 
 class ApiError extends Error {
   status?: number;
+  kind?: "timeout" | "http";
 
-  constructor(message: string, status?: number) {
+  constructor(message: string, status?: number, kind: "timeout" | "http" = "http") {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.kind = kind;
   }
 }
 
@@ -65,17 +67,61 @@ function normalizeError(payload: unknown): string {
   return "Не удалось выполнить запрос к серверу";
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+type RequestInitWithTimeout = RequestInit & {
+  timeoutMs?: number;
+  retry?: number;
+  retryDelayMs?: number;
+};
+
+async function request<T>(path: string, init?: RequestInitWithTimeout): Promise<T> {
+  const retry = init?.retry ?? 0;
+  const retryDelayMs = init?.retryDelayMs ?? 800;
+  const timeoutMs = init?.timeoutMs ?? 30000;
+
+  const requestInit: RequestInit = { ...(init ?? {}) };
+  delete (requestInit as RequestInitWithTimeout).timeoutMs;
+  delete (requestInit as RequestInitWithTimeout).retry;
+  delete (requestInit as RequestInitWithTimeout).retryDelayMs;
+
+  let attempt = 0;
+  while (true) {
+    try {
+      return await requestOnce<T>(path, requestInit, timeoutMs);
+    } catch (error) {
+      if (attempt >= retry) {
+        throw error;
+      }
+      attempt += 1;
+      await new Promise((resolve) => window.setTimeout(resolve, retryDelayMs));
+    }
+  }
+}
+
+async function requestOnce<T>(path: string, requestInit: RequestInit, timeoutMs: number): Promise<T> {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  const headers = new Headers(init?.headers ?? {});
+  const headers = new Headers(requestInit.headers ?? {});
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...requestInit,
+      headers,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError("REQUEST_TIMEOUT", undefined, "timeout");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
@@ -93,7 +139,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const apiClient = {
   getHealth() {
-    return request<HealthResponse>("/health");
+    return request<HealthResponse>("/health", { timeoutMs: 25000 });
   },
 
   uploadDocument(file: File) {
@@ -101,7 +147,8 @@ export const apiClient = {
     formData.append("file", file);
     return request<UploadResponse>("/upload", {
       method: "POST",
-      body: formData
+      body: formData,
+      timeoutMs: 60000
     });
   },
 
@@ -111,7 +158,8 @@ export const apiClient = {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      timeoutMs: 240000
     });
   },
 
@@ -121,7 +169,8 @@ export const apiClient = {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      timeoutMs: 360000
     });
   },
 
@@ -150,7 +199,8 @@ export const apiClient = {
           headers: {
             "Content-Type": "application/json"
           },
-          body: orchestrateBody
+          body: orchestrateBody,
+          timeoutMs: 360000
         })
       );
     }
@@ -162,7 +212,8 @@ export const apiClient = {
           headers: {
             "Content-Type": "application/json"
           },
-          body: analyzeBody
+          body: analyzeBody,
+          timeoutMs: 360000
         }),
       () =>
         request<ContractReport>("/orchestrate", {
@@ -170,7 +221,8 @@ export const apiClient = {
           headers: {
             "Content-Type": "application/json"
           },
-          body: orchestrateBody
+          body: orchestrateBody,
+          timeoutMs: 360000
         }),
       () =>
         request<LegacyAnalyzeResponse>("/analyze", {
@@ -178,7 +230,8 @@ export const apiClient = {
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ document_id: documentId })
+          body: JSON.stringify({ document_id: documentId }),
+          timeoutMs: 360000
         })
     );
 
@@ -192,7 +245,8 @@ export const apiClient = {
           body: JSON.stringify({
             document_id: documentId,
             text: options.legacyText
-          })
+          }),
+          timeoutMs: 360000
         })
       );
     }
@@ -215,46 +269,45 @@ export const apiClient = {
   async getDocumentStatus(documentId: string) {
     try {
       const status = await request<DocumentStatusResponse>(
-        `/documents/${documentId}/status`
+        `/documents/${documentId}/status`,
+        { timeoutMs: 25000 }
       );
-      return request<DocumentResponse>(`/documents/${documentId}`).then((doc) => ({
+      return request<DocumentResponse>(`/documents/${documentId}`, { timeoutMs: 25000 }).then((doc) => ({
         ...doc,
         status: status.status
       }));
     } catch (error) {
       if (isEndpointUnavailable(error)) {
-        return request<DocumentResponse>(`/documents/${documentId}`);
+        return request<DocumentResponse>(`/documents/${documentId}`, { timeoutMs: 25000 });
+      }
+      throw error;
+    }
+  },
+
+  async fetchExistingReport(documentId: string) {
+    try {
+      return await request<ContractReport>(`/documents/${documentId}/report`, {
+        timeoutMs: 60000,
+        retry: 1,
+        retryDelayMs: 1000
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        throw new ApiError("Отчет для этого документа пока не сформирован.", 404);
+      }
+      if (error instanceof ApiError && error.kind === "timeout") {
+        throw new ApiError(
+          "Отчет формируется дольше обычного. Попробуйте обновить через несколько секунд.",
+          undefined,
+          "timeout"
+        );
       }
       throw error;
     }
   },
 
   async getDocumentReport(documentId: string) {
-    const variants: Array<() => Promise<ContractReport>> = [
-      () => request<ContractReport>(`/documents/${documentId}/report`),
-      () =>
-        request<ContractReport>("/orchestrate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ document_id: documentId })
-        })
-    ];
-
-    let lastError: unknown;
-    for (const run of variants) {
-      try {
-        return await run();
-      } catch (error) {
-        lastError = error;
-        if (!isEndpointUnavailable(error)) {
-          throw error;
-        }
-      }
-    }
-
-    throw lastError ?? new ApiError("Отчет по документу недоступен", 500);
+    return this.fetchExistingReport(documentId);
   },
 
   async askDocumentQuestion(documentId: string, question: string) {
@@ -267,7 +320,8 @@ export const apiClient = {
           headers: {
             "Content-Type": "application/json"
           },
-          body
+          body,
+          timeoutMs: 120000
         })
     ];
 
@@ -289,7 +343,8 @@ export const apiClient = {
   async getLegalSources(documentId: string) {
     try {
       const payload = await request<LegalSourcesResponse>(
-        `/documents/${documentId}/legal-sources`
+        `/documents/${documentId}/legal-sources`,
+        { timeoutMs: 90000 }
       );
       return payload.legal_sources ?? [];
     } catch (error) {
@@ -307,11 +362,11 @@ export const apiClient = {
   },
 
   getDocuments() {
-    return request<DocumentResponse[]>("/documents");
+    return request<DocumentResponse[]>("/documents", { timeoutMs: 25000 });
   },
 
   getDocument(documentId: string) {
-    return request<DocumentResponse>(`/documents/${documentId}`);
+    return request<DocumentResponse>(`/documents/${documentId}`, { timeoutMs: 25000 });
   },
 
   register(payload: RegisterRequest) {
@@ -320,7 +375,8 @@ export const apiClient = {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      timeoutMs: 30000
     });
   },
 
@@ -330,12 +386,13 @@ export const apiClient = {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      timeoutMs: 30000
     });
   },
 
   getMe() {
-    return request<UserResponse>("/auth/me");
+    return request<UserResponse>("/auth/me", { timeoutMs: 25000 });
   }
 };
 

@@ -3,7 +3,7 @@ from pathlib import Path
 
 from app.services.chunking_service import chunk_records_from_pages
 from app.services.ocr_service import run_ocr, run_ocr_pages
-from app.services.text_extractor import extract_pages
+from app.services.text_extractor import extract_pages_with_metadata
 
 
 def _clean_text(text: str) -> str:
@@ -15,8 +15,10 @@ def _clean_text(text: str) -> str:
 
 def process_document(document_id: str, file_path: str) -> dict:
     path = Path(file_path)
-    pages = extract_pages(file_path)
-    used_ocr = False
+    extraction_result = extract_pages_with_metadata(file_path)
+    pages = list(extraction_result.get("pages", []))
+    warnings = list(extraction_result.get("warnings", []))
+    used_ocr = bool(extraction_result.get("used_ocr", False))
 
     if not any(str(page.get("text", "")).strip() for page in pages):
         if path.suffix.lower() == ".pdf":
@@ -25,9 +27,14 @@ def process_document(document_id: str, file_path: str) -> dict:
             ocr_text = run_ocr(file_path)
             pages = [{"page": 1, "text": ocr_text}] if ocr_text else []
         used_ocr = True
+        warnings.append("Качество распознавания текста может быть снижено.")
 
     pages = [
-        {"page": page.get("page"), "text": _clean_text(str(page.get("text", "")))}
+        {
+            "page": page.get("page"),
+            "text": _clean_text(str(page.get("text", ""))),
+            "source": str(page.get("source", "text_layer")),
+        }
         for page in pages
         if str(page.get("text", "")).strip()
     ]
@@ -52,4 +59,5 @@ def process_document(document_id: str, file_path: str) -> dict:
         "chunk_records": chunk_records,
         "pages": pages,
         "used_ocr": used_ocr,
+        "warnings": warnings,
     }

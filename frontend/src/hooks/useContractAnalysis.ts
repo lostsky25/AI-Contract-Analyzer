@@ -223,7 +223,7 @@ export function useContractAnalysis() {
     try {
       const result = await apiClient.processDocument({
         document_id: uploadResult.document_id,
-        file_path: uploadResult.file_path
+        file_path: uploadResult.file_path ?? ""
       });
       setProcessResult(result);
       setAnalysisInput(result.full_text ?? result.text_preview ?? "");
@@ -290,7 +290,12 @@ export function useContractAnalysis() {
         uploadResult.document_id,
         questionInput
       );
-      setQuestionResult(result);
+      setQuestionResult({
+        ...result,
+        confidence: result.confidence ?? "unknown",
+        citations: result.citations ?? [],
+        disclaimer: result.disclaimer ?? DEFAULT_DISCLAIMER
+      });
       setQuestionState("success");
     } catch (errorValue) {
       setQuestionState("error");

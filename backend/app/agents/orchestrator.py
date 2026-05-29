@@ -49,13 +49,20 @@ class Orchestrator:
             )
             risks = list(risk_output.get("risks", []))
             summary = str(risk_output.get("summary", "")) or raw.get("text_preview", "")
-            legal_research = self.legal_research_agent.run(
-                document_id=document_id,
-                risks=risks,
-                key_terms=key_terms,
-                summary=summary,
-                web_search_enabled=legal_web_search_enabled,
-            )
+            legal_research: dict = {"legal_sources": [], "warnings": []}
+            try:
+                legal_research = self.legal_research_agent.run(
+                    document_id=document_id,
+                    risks=risks,
+                    key_terms=key_terms,
+                    summary=summary,
+                    web_search_enabled=legal_web_search_enabled,
+                )
+            except Exception:
+                legal_research = {
+                    "legal_sources": [],
+                    "warnings": ["Legal web search provider is unavailable."],
+                }
             assembled = self.analysis_agent.assemble_report(
                 document_id=document_id,
                 risk_output=risk_output,
@@ -65,14 +72,14 @@ class Orchestrator:
             )
             assembled["legal_sources"] = legal_research.get("legal_sources", [])
             assembled["warnings"] = list(legal_research.get("warnings", []))
-            if not assembled["legal_sources"]:
+            if assembled["warnings"]:
                 assembled["status"] = "done_with_warnings"
             report = self.report_agent.run(assembled)
-            save_report(document_id, report)
+            save_report(document_id, report, db=db)
             update_document_status(
                 db=db,
                 document_id=document_id,
-                status="done",
+                status=str(report.get("status", "done")),
                 text_length=raw["text_length"],
                 user_id=user_id,
             )

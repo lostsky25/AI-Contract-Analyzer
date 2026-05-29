@@ -7,7 +7,7 @@ import { OverallRiskBadge } from "./OverallRiskBadge";
 import { QuestionsTab } from "./QuestionsTab";
 import { RiskCard } from "./RiskCard";
 
-type TabId = "overview" | "risks" | "terms" | "sources" | "questions";
+type TabId = "overview" | "risks" | "terms" | "quotes" | "sources" | "questions";
 
 type ReportTabsProps = {
   report: ContractReport;
@@ -28,15 +28,39 @@ export function ReportTabs({
 }: ReportTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
+  const quoteRows = useMemo(() => {
+    const riskQuotes = report.risks.map((risk) => ({
+      source: "Риск",
+      title: risk.title,
+      quote: risk.quote ?? "",
+      page: risk.page ?? null
+    }));
+    const termQuotes = report.key_terms.map((term) => ({
+      source: "Ключевое условие",
+      title: term.title,
+      quote: term.quote ?? "",
+      page: term.page ?? null
+    }));
+    const merged = [...riskQuotes, ...termQuotes].filter((item) => item.quote.trim());
+    const seen = new Set<string>();
+    return merged.filter((item) => {
+      const key = `${item.quote.trim().toLowerCase()}::${item.page ?? "none"}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [report.key_terms, report.risks]);
+
   const tabs = useMemo(
     () => [
       { id: "overview" as const, label: "Обзор" },
       { id: "risks" as const, label: `Риски (${report.risks.length})` },
       { id: "terms" as const, label: `Ключевые условия (${report.key_terms.length})` },
-      { id: "sources" as const, label: `Источники (${report.legal_sources.length})` },
+      { id: "quotes" as const, label: `Цитаты (${quoteRows.length})` },
+      { id: "sources" as const, label: `Правовые источники (${report.legal_sources.length})` },
       { id: "questions" as const, label: "Вопросы" }
     ],
-    [report.key_terms.length, report.legal_sources.length, report.risks.length]
+    [quoteRows.length, report.key_terms.length, report.legal_sources.length, report.risks.length]
   );
 
   return (
@@ -76,6 +100,7 @@ export function ReportTabs({
               </div>
             </div>
             <p className="summary">{report.summary}</p>
+            <p className="muted">{report.disclaimer}</p>
           </div>
         ) : null}
 
@@ -90,6 +115,24 @@ export function ReportTabs({
         ) : null}
 
         {activeTab === "terms" ? <KeyTermsList terms={report.key_terms} /> : null}
+
+        {activeTab === "quotes" ? (
+          <div className="quotes-list">
+            {quoteRows.length ? (
+              quoteRows.map((quote, index) => (
+                <article className="quote-card" key={`${quote.title}-${index}`}>
+                  <p className="quote-title">
+                    <strong>{quote.source}:</strong> {quote.title}
+                  </p>
+                  <blockquote>{quote.quote}</blockquote>
+                  <p className="muted">{quote.page ? `стр. ${quote.page}` : "страница не указана"}</p>
+                </article>
+              ))
+            ) : (
+              <p className="muted">Цитаты не найдены.</p>
+            )}
+          </div>
+        ) : null}
 
         {activeTab === "sources" ? <LegalSourcesPanel legalSources={report.legal_sources} /> : null}
 

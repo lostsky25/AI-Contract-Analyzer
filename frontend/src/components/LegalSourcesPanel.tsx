@@ -21,8 +21,7 @@ export function LegalSourcesPanel({ legalSources }: LegalSourcesPanelProps) {
   if (!legalSources.length) {
     return (
       <p className="muted legal-empty">
-        Правовые источники не найдены или web-проверка недоступна. Анализ всё равно выполнен по
-        тексту договора.
+        Правовые источники не найдены или web-проверка недоступна. Анализ выполнен по тексту договора.
       </p>
     );
   }
@@ -35,6 +34,7 @@ export function LegalSourcesPanel({ legalSources }: LegalSourcesPanelProps) {
             <h4>{source.title}</h4>
             <div className="legal-source-meta">
               <span className="status status-default">{sourceLabel(source.source_type)}</span>
+              <span className="status status-default">{source.source_type}</span>
               <span className={`severity severity-${source.relevance}`}>{source.relevance}</span>
             </div>
           </div>

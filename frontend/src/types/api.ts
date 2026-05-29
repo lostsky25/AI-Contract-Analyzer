@@ -2,7 +2,7 @@ export type UploadResponse = {
   document_id: string;
   filename: string;
   status: string;
-  file_path: string;
+  file_path?: string;
 };
 
 export type ProcessRequest = {
@@ -87,7 +87,7 @@ export type LegacyAnalyzeResponse = {
 export type DocumentResponse = {
   document_id: string;
   filename: string;
-  file_path: string;
+  file_path?: string;
   status: string;
   text_length: number | null;
   created_at: string;
@@ -102,13 +102,22 @@ export type HealthResponse = {
   status: string;
 };
 
+export type DocumentQuestionCitation = {
+  quote: string;
+  page?: number | null;
+  chunk_id: string;
+};
+
 export type DocumentQuestionResponse = {
   document_id: string;
-  status: string;
   question: string;
   answer: string;
-  model: string;
-  fallback_model: string;
+  confidence: "low" | "medium" | "high" | "unknown";
+  citations: DocumentQuestionCitation[];
+  disclaimer: string;
+  status?: string;
+  model?: string;
+  fallback_model?: string;
 };
 
 export type LegalSourcesResponse = {

@@ -211,7 +211,6 @@ async def upload_file(
         document_id=document_id,
         filename=file.filename or "uploaded_file",
         status="uploaded",
-        file_path=saved_path,
     )
 
 
@@ -263,7 +262,7 @@ async def get_document_report(
     current_user: User = Depends(get_current_user),
 ) -> OrchestrateResponse:
     _get_owned_document_or_404(db, document_id, current_user)
-    report = get_report(document_id)
+    report = get_report(document_id, db=db)
     if report is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -313,7 +312,7 @@ async def get_document_legal_sources(
     current_user: User = Depends(get_current_user),
 ) -> dict:
     _get_owned_document_or_404(db, document_id, current_user)
-    report = get_report(document_id)
+    report = get_report(document_id, db=db)
     if report is None:
         return {"document_id": document_id, "legal_sources": [], "warnings": []}
     return {
@@ -679,7 +678,6 @@ async def get_document_by_id(
     return DocumentResponse(
         document_id=document.id,
         filename=document.filename,
-        file_path=document.file_path,
         status=document.status,
         text_length=document.text_length,
         created_at=document.created_at,
@@ -696,7 +694,6 @@ async def get_documents(
         DocumentResponse(
             document_id=document.id,
             filename=document.filename,
-            file_path=document.file_path,
             status=document.status,
             text_length=document.text_length,
             created_at=document.created_at,

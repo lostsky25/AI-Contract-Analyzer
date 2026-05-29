@@ -1,8 +1,12 @@
-from pydantic import Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    env: str = Field(
+        default="development",
+        validation_alias=AliasChoices("ENV", "APP_ENV", "ENVIRONMENT"),
+    )
     upload_dir: str = "uploads"
     max_file_size_mb: int = 20
     allowed_extensions: list[str] = Field(default_factory=lambda: [".pdf", ".docx"])
@@ -16,8 +20,10 @@ class Settings(BaseSettings):
     openrouter_model_fallback: str = "deepseek/deepseek-v4-flash:free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1/chat/completions"
     chroma_db_dir: str = "./chroma_db"
-    embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
-    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_model_name: str = Field(
+        default="sentence-transformers/all-MiniLM-L6-v2",
+        validation_alias=AliasChoices("EMBEDDING_MODEL_NAME", "EMBEDDING_MODEL"),
+    )
     legal_web_search_enabled: bool = True
     legal_search_provider: str = "openrouter_web_search"
     legal_allowed_domains: str = "consultant.ru,garant.ru,pravo.gov.ru"
@@ -28,7 +34,7 @@ class Settings(BaseSettings):
     )
     tesseract_cmd: str | None = None
     poppler_path: str | None = None
-    jwt_secret_key: str = "change-me-in-production"
+    jwt_secret_key: str = "demo-only-change-me"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
 
@@ -37,6 +43,19 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
+
+    @model_validator(mode="after")
+    def validate_jwt_secret_policy(self) -> "Settings":
+        if self.env.strip().lower() != "production":
+            return self
+
+        secret = self.jwt_secret_key.strip()
+        weak_defaults = {"", "change-me-in-production", "demo-only-change-me"}
+        if secret in weak_defaults:
+            raise ValueError(
+                "JWT_SECRET_KEY must be explicitly set to a strong value when ENV=production."
+            )
+        return self
 
 
 settings = Settings()

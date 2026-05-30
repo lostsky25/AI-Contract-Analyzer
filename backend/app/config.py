@@ -39,6 +39,7 @@ class Settings(BaseSettings):
         "postgresql://postgres:postgres@localhost:5432/ai_contract_analyzer"
     )
     tesseract_cmd: str | None = None
+    ocr_tesseract_lang: str = "rus+eng"
     poppler_path: str | None = None
     ocr_provider: str = "hybrid"
     ocr_use_vlm: bool = True

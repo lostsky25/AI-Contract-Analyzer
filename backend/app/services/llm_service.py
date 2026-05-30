@@ -1,9 +1,12 @@
 import json
 import base64
+import logging
 
-import httpx
 
 from app.config import settings
+from app.services.openrouter_service import ProviderError, post_chat_completion
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
     "Ты — ИИ-анализатор рисков по договорам. "
@@ -44,43 +47,42 @@ def _extract_json_payload(content: str) -> dict:
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ValueError("Model returned invalid JSON response.") from exc
+        raise ProviderError(
+            provider="openrouter",
+            code="openrouter_bad_response",
+            message="Unexpected OpenRouter response format.",
+            status_code=None,
+            retryable=False,
+        ) from exc
 
     if not isinstance(parsed, dict):
-        raise ValueError("Model response must be a JSON object.")
+        raise ProviderError(
+            provider="openrouter",
+            code="openrouter_bad_response",
+            message="Model response must be a JSON object.",
+            status_code=None,
+            retryable=False,
+        )
     return parsed
 
 
 def _post_openrouter(model: str, messages: list[dict], temperature: float = 0.2) -> str:
-    if not settings.openrouter_api_key:
-        raise RuntimeError("OPENROUTER_API_KEY is missing.")
-
-    payload = {
-        "model": model,
-        "temperature": temperature,
-        "messages": messages,
-    }
-    headers = {
-        "Authorization": f"Bearer {settings.openrouter_api_key}",
-        "Content-Type": "application/json",
-    }
-
-    try:
-        with httpx.Client(timeout=60.0) as client:
-            response = client.post(
-                settings.openrouter_base_url,
-                headers=headers,
-                json=payload,
-            )
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise RuntimeError("OpenRouter request failed.") from exc
-
-    data = response.json()
+    data = post_chat_completion(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        timeout=60.0,
+    )
     try:
         return str(data["choices"][0]["message"]["content"])
     except (KeyError, IndexError, TypeError) as exc:
-        raise ValueError("Unexpected OpenRouter response format.") from exc
+        raise ProviderError(
+            provider="openrouter",
+            code="openrouter_bad_response",
+            message="Unexpected OpenRouter response format.",
+            status_code=None,
+            retryable=False,
+        ) from exc
 
 
 def _call_with_fallback(
@@ -92,12 +94,19 @@ def _call_with_fallback(
             messages=messages,
             temperature=temperature,
         )
+    except ProviderError as exc:
+        if exc.code in {"openrouter_missing_key", "openrouter_auth_failed"}:
+            raise
     except Exception:
+        pass
+    try:
         return _post_openrouter(
             model=settings.openrouter_model_fallback,
             messages=messages,
             temperature=temperature,
         )
+    except ProviderError as exc:
+        raise exc
 
 
 def analyze_contract(context: str, model: str | None = None) -> dict:
@@ -114,13 +123,19 @@ def analyze_contract(context: str, model: str | None = None) -> dict:
     return result
 
 
-def ask_llm_json(system_prompt: str, user_prompt: str, model: str) -> dict:
+def ask_llm_json(
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    temperature: float = 0.2,
+) -> dict:
     content = _call_with_fallback(
         primary_model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
+        temperature=temperature,
     )
     return _extract_json_payload(content)
 
@@ -154,60 +169,69 @@ def extract_text_from_image_with_vlm(
     page_number: int,
     model: str | None = None,
 ) -> str:
-    if not settings.openrouter_api_key:
-        raise RuntimeError("OPENROUTER_API_KEY is missing.")
+    explicit_model = str(model or "").strip()
+    preferred_model = str(settings.openrouter_model_ocr_vlm or "").strip()
+    legacy_model = str(settings.openrouter_ocr_model or "").strip()
 
-    resolved_model = (
-        model
-        or settings.openrouter_model_ocr_vlm
-        or settings.openrouter_ocr_model
-    )
+    if explicit_model:
+        resolved_model = explicit_model
+    elif preferred_model:
+        resolved_model = preferred_model
+    else:
+        resolved_model = legacy_model
+        if resolved_model:
+            logger.warning(
+                "OPENROUTER_MODEL_OCR_VLM is not set; using legacy OPENROUTER_OCR_MODEL."
+            )
+
     if not resolved_model:
-        raise RuntimeError("OPENROUTER_MODEL_OCR_VLM is not configured.")
+        raise ProviderError(
+            provider="openrouter",
+            code="openrouter_model_not_found",
+            message="OpenRouter model is not available.",
+            status_code=None,
+            retryable=False,
+        )
 
     base64_image = base64.b64encode(image_bytes).decode("ascii")
     data_url = f"data:image/png;base64,{base64_image}"
+    system_prompt = (
+        "You are an OCR system. Extract all visible text from the page, preserve reading order, "
+        "do not translate, do not add comments, and do not reinterpret legal meaning. "
+        "Return plain text only."
+    )
     prompt = (
-        "Извлеки весь видимый текст со страницы документа. "
-        "Сохрани порядок чтения и исходный язык. "
-        "Не добавляй комментарии, не переводи и не интерпретируй текст. "
-        "Ответ верни только plain text без markdown."
+        "Extract every visible character from this contract page. "
+        "Keep original language and layout order. "
+        "If text is Russian, keep it in Russian. "
+        "Return only plain text without markdown."
     )
 
-    payload = {
-        "model": resolved_model,
-        "temperature": 0,
-        "messages": [
+    data = post_chat_completion(
+        model=resolved_model,
+        messages=[
+            {"role": "system", "content": system_prompt},
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": f"{prompt}\nНомер страницы: {page_number}."},
+                    {"type": "text", "text": f"{prompt}\nPage number: {page_number}."},
                     {"type": "image_url", "image_url": {"url": data_url}},
                 ],
             }
         ],
-    }
-    headers = {
-        "Authorization": f"Bearer {settings.openrouter_api_key}",
-        "Content-Type": "application/json",
-    }
-
-    try:
-        with httpx.Client(timeout=float(settings.ocr_vlm_timeout_seconds)) as client:
-            response = client.post(
-                settings.openrouter_base_url,
-                headers=headers,
-                json=payload,
-            )
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise RuntimeError("OpenRouter VLM OCR request failed.") from exc
-
-    data = response.json()
+        temperature=0,
+        timeout=float(settings.ocr_vlm_timeout_seconds),
+    )
     try:
         message_content = data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
-        raise ValueError("Unexpected OpenRouter VLM OCR response format.") from exc
+        raise ProviderError(
+            provider="openrouter",
+            code="openrouter_bad_response",
+            message="Unexpected OpenRouter response format.",
+            status_code=None,
+            retryable=False,
+        ) from exc
 
     extracted = _extract_text_content(message_content)
     return extracted.strip()

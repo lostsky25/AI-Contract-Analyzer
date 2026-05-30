@@ -8,6 +8,7 @@ import { ReportsTable } from "../components/ReportsTable";
 import { StatusBadge, statusLabel } from "../components/StatusBadge";
 import { useContractAnalysis } from "../hooks/useContractAnalysis";
 import { AppShell } from "../layouts/AppShell";
+import { AUTH_EXPIRED_EVENT } from "../services/api";
 import type { DocumentResponse } from "../types/api";
 import { formatDateTime } from "../utils/format";
 
@@ -39,18 +40,8 @@ function normalizeStatus(status: string): string {
 }
 
 function normalizeErrorMessage(stage: string, message: string): string {
-  const lower = message.toLowerCase();
-  const providerUnavailable =
-    lower.includes("openrouter") ||
-    lower.includes("provider is unavailable") ||
-    lower.includes("api key") ||
-    lower.includes("request failed");
-
-  if ((stage === "analyze" || stage === "report") && providerUnavailable) {
-    return "AI-анализ временно недоступен. Проверьте настройку внешнего AI-провайдера.";
-  }
   if (stage === "analyze") {
-    return `AI-анализ временно недоступен: ${message}`;
+    return message || "AI-анализ временно недоступен.";
   }
   if (stage === "report") {
     return message || "Отчет для этого документа пока не сформирован.";
@@ -126,6 +117,12 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
   const [activeSection, setActiveSection] = useState<SectionId>("home");
 
   useEffect(() => {
+    const handleAuthExpired = () => onLogout();
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+  }, [onLogout]);
+
+  useEffect(() => {
     if (activeSection !== "documents" && searchQuery) {
       setSearchQuery("");
     }
@@ -133,6 +130,8 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
 
   const fileName = model.selectedDocument?.filename ?? model.uploadResult?.filename ?? model.selectedFile?.name;
   const fileType = fileTypeLabel(fileName);
+  const documentFileClass = fileType === "PDF" ? "pdf" : fileType === "DOCX" ? "docx" : "file";
+  const documentFileLabel = fileType === "PDF" ? "PDF" : fileType === "DOCX" ? "DOCX" : "FILE";
   const selectedStatus = model.selectedStatus || "unknown";
   const normalizedSelectedStatus = normalizeStatus(selectedStatus);
   const pipelineInfo = `${fileType} · ${statusLabel(selectedStatus)}`;
@@ -183,7 +182,7 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
     }
   }, [model.error]);
 
-  const steps = useMemo<Array<{ id: StepId; label: string; state: StepState }>>(() => {
+  const steps = useMemo<Array<{ id: StepId; label: string; state: StepState; warning?: boolean }>>(() => {
     const hasUpload = Boolean(model.hasSelectedDocument || model.uploadResult);
     const hasProcess =
       Boolean(model.processResult) ||
@@ -224,12 +223,14 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
       return "pending";
     };
 
+    const warningDoneState = normalizedSelectedStatus === "done_with_warnings";
+
     return [
       { id: "upload", label: "Загрузка", state: resolve("upload") },
       { id: "process", label: "Обработка", state: resolve("process") },
-      { id: "analyze", label: "Анализ", state: resolve("analyze") },
-      { id: "sources", label: "Источники", state: resolve("sources") },
-      { id: "report", label: "Отчет", state: resolve("report") }
+      { id: "analyze", label: "Анализ", state: resolve("analyze"), warning: warningDoneState },
+      { id: "sources", label: "Источники", state: resolve("sources"), warning: warningDoneState },
+      { id: "report", label: "Отчёт", state: resolve("report"), warning: warningDoneState }
     ];
   }, [
     failedStep,
@@ -259,6 +260,7 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
     analyzeState: model.analyzeState,
     hasReport: Boolean(model.report)
   });
+  const showAnalyzeCtaIcon = analyzeAction.label !== "Анализ выполняется...";
 
   return (
     <AppShell
@@ -283,13 +285,25 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
                 <div className="hero-text">
                   <h1>Проверяйте договоры быстрее и увереннее с помощью AI</h1>
                   <p>
-                    Загрузите договор и получите понятный отчет по рискам, ключевым условиям и рекомендациям за
+                    Загрузите договор и получите понятный отчёт по рискам, ключевым условиям и рекомендациям за
                     несколько минут.
                   </p>
                 </div>
                 <div className="hero-visual" aria-hidden>
+                  <div className="hero-orbit" />
+                  <div className="hero-orbit hero-orbit-small" />
+                  <div className="hero-dot hero-dot-a" />
+                  <div className="hero-dot hero-dot-b" />
+                  <div className="hero-document">
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <div className="hero-shield">
+                    <div className="hero-check">✓</div>
+                  </div>
                   <div className="hero-glow" />
-                  <div className="hero-shield">✓</div>
                 </div>
               </section>
 
@@ -320,7 +334,18 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
                   accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   onChange={(event) => model.pickFile(event.target.files?.[0] ?? null)}
                 />
-                <div className="dropzone-icon">⇪</div>
+                <div className="dropzone-icon" aria-hidden>
+                  <svg viewBox="0 0 24 24">
+                    <path
+                      d="M7.4 18.3A4.9 4.9 0 1 1 8.9 8.7a6 6 0 0 1 11.3 2.6A3.8 3.8 0 0 1 19 18.7h-3.8m-3.2 0v-8m0 0l-2.8 2.9m2.8-2.9l2.8 2.9"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
                 <div className="dropzone-content">
                   <h3>Перетащите файл договора сюда</h3>
                   <p className="muted">PDF и DOCX, до 20 MB</p>
@@ -337,35 +362,64 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
                       Выбрать файл
                     </button>
                   </div>
-                  <p className="meta">{model.selectedFile ? `Выбран файл: ${model.selectedFile.name}` : "Файл еще не выбран"}</p>
+                  <p className="meta dropzone-file-meta">
+                    <span className="dropzone-file-icon" aria-hidden>
+                      {model.selectedFile ? "L" : "i"}
+                    </span>
+                    <span>{model.selectedFile ? `Выбран файл: ${model.selectedFile.name}` : "Файл ещё не выбран"}</span>
+                  </p>
                 </div>
               </section>
 
               <section className="card stepper-card reveal">
                 <div className="stepper-row">
-                  {steps.map((step, index) => (
-                    <div className={`step-item ${step.state}`} key={step.id}>
-                      <span className="step-index">{index + 1}</span>
+                  {steps.map((step, index) => {
+                    const nextStep = steps[index + 1];
+                    const connectorClass = !nextStep
+                      ? "connector-none"
+                      : step.state === "done" && nextStep.state === "done"
+                        ? "connector-done"
+                        : step.state === "done" && nextStep.state === "active"
+                          ? "connector-active"
+                          : "connector-pending";
+
+                    return (
+                    <div
+                      className={`step-item ${step.state} ${step.warning ? "warning" : ""} ${connectorClass}`}
+                      key={step.id}
+                    >
+                      <span className="step-index">{step.state === "done" ? "✓" : index + 1}</span>
                       <span className="step-label">{step.label}</span>
                     </div>
-                  ))}
+                  );})}
                 </div>
               </section>
 
               <section className="card document-card reveal">
                 <div className="document-head">
-                  <div>
-                    <h3>{fileName ?? "Документ пока не загружен"}</h3>
-                    <p className="muted">{pipelineInfo}</p>
+                  <div className="document-identity">
+                    <div className={`document-file-icon ${documentFileClass}`} aria-hidden>
+                      <span className="document-file-corner" />
+                      <span className="document-file-glyph">{documentFileLabel === "DOCX" ? "W" : documentFileLabel}</span>
+                    </div>
+                    <div>
+                      <h3>{fileName ?? "Документ пока не загружен"}</h3>
+                      <p className="muted document-pipeline">{pipelineInfo}</p>
+                    </div>
                   </div>
                   <div className="document-actions">
                     <button
-                      className="button primary"
+                      className="button primary analysis-cta"
                       type="button"
                       onClick={() => void model.runAnalysisPipeline()}
                       disabled={analyzeAction.disabled}
                       title={analyzeAction.title}
                     >
+                      {showAnalyzeCtaIcon ? (
+                        <span className="analysis-cta-icon" aria-hidden>
+                          ▶
+                        </span>
+                      ) : null}
                       {analyzeAction.label}
                     </button>
                   </div>
@@ -378,14 +432,18 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
                   </div>
                   <div className="doc-meta-item">
                     <p className="muted">Web-проверка источников</p>
-                    <label className="checkbox-option">
+                    <label className="checkbox-option checkbox-option-card">
                       <input
                         type="checkbox"
                         checked={model.legalWebSearchEnabled}
                         onChange={(event) => model.setLegalWebSearchEnabled(event.target.checked)}
                         disabled={model.isBusy}
                       />
-                      <span>{model.legalWebSearchEnabled ? "Включена" : "Отключена"}</span>
+                      <span>
+                        {model.legalWebSearchEnabled
+                          ? "Web-проверка источников включена"
+                          : "Web-проверка источников отключена"}
+                      </span>
                     </label>
                   </div>
                 </div>
@@ -393,26 +451,57 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
 
               <section className="card summary-card reveal">
                 <div className="summary-risk">
-                  <p className="muted">Общий уровень риска</p>
+                  <div className="summary-risk-head">
+                    <span className="summary-metric-icon risk" aria-hidden>
+                      <svg viewBox="0 0 24 24" role="presentation">
+                        <path d="M12 2 19 5v6.1c0 5.1-3.2 9.5-7 10.9-3.8-1.4-7-5.8-7-10.9V5L12 2Z" />
+                        <path d="M12 7.1v6.2M12 16.8h.01" />
+                      </svg>
+                    </span>
+                    <p className="muted">Общий уровень риска</p>
+                  </div>
                   {model.report ? <OverallRiskBadge risk={model.report.overall_risk} /> : <span className="muted">N/A</span>}
-                  <p className="muted">Готовность: {completion}</p>
+                  <p className="muted summary-risk-status">Готовность: {completion}</p>
                 </div>
                 <div className="summary-metrics">
-                  <div>
+                  <div className="summary-metric-card">
+                    <span className="summary-metric-icon metric-risks" aria-hidden>
+                      <svg viewBox="0 0 24 24" role="presentation">
+                        <path d="M12 3 3 20h18L12 3Z" />
+                        <path d="M12 9v5M12 17.2h.01" />
+                      </svg>
+                    </span>
                     <p className="muted">Риски</p>
                     <strong>{model.report?.risks.length ?? 0}</strong>
                   </div>
-                  <div>
+                  <div className="summary-metric-card">
+                    <span className="summary-metric-icon metric-terms" aria-hidden>
+                      <svg viewBox="0 0 24 24" role="presentation">
+                        <path d="M6 4h12a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" />
+                        <path d="M8.5 9h7M8.5 12h7M8.5 15h4.8" />
+                      </svg>
+                    </span>
                     <p className="muted">Ключевые условия</p>
                     <strong>{model.report?.key_terms.length ?? 0}</strong>
                   </div>
-                  <div>
+                  <div className="summary-metric-card">
+                    <span className="summary-metric-icon metric-quotes" aria-hidden>
+                      <svg viewBox="0 0 24 24" role="presentation">
+                        <path d="M7.7 9.3A3.7 3.7 0 0 0 4 13v3.6c0 1.4 1.1 2.5 2.5 2.5h2.4c1.3 0 2.4-1.1 2.4-2.4v-2.6c0-1.2-1-2.2-2.2-2.2h-1c.3-1 .9-1.8 1.8-2.6.3-.2.3-.7 0-1L9 7.4a.8.8 0 0 0-1.3.1Zm8.6 0A3.7 3.7 0 0 0 12.6 13v3.6c0 1.4 1.1 2.5 2.5 2.5h2.4c1.3 0 2.4-1.1 2.4-2.4v-2.6c0-1.2-1-2.2-2.2-2.2h-1c.3-1 .9-1.8 1.8-2.6.3-.2.3-.7 0-1L17.7 7.4a.8.8 0 0 0-1.4.1Z" />
+                      </svg>
+                    </span>
                     <p className="muted">Цитаты / страницы</p>
                     <strong>
                       {quotes.length} / {uniquePagesCount}
                     </strong>
                   </div>
-                  <div>
+                  <div className="summary-metric-card">
+                    <span className="summary-metric-icon metric-sources" aria-hidden>
+                      <svg viewBox="0 0 24 24" role="presentation">
+                        <path d="M12 3.2c4.8 0 8.8 3.9 8.8 8.8s-3.9 8.8-8.8 8.8S3.2 16.9 3.2 12s3.9-8.8 8.8-8.8Z" />
+                        <path d="M12 6.8v10.4M8.2 9.1 12 7.8l3.8 1.3M7.6 10.3h2.6c1 0 1.8.8 1.8 1.8v1.2c0 1-.8 1.8-1.8 1.8H7.6m8.8-4.8H19c1 0 1.8.8 1.8 1.8v1.2c0 1-.8 1.8-1.8 1.8h-2.6" />
+                      </svg>
+                    </span>
                     <p className="muted">Правовые источники</p>
                     <strong>{model.report?.legal_sources.length ?? 0}</strong>
                   </div>
@@ -421,10 +510,15 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
 
               <section className="card report-card reveal" id="report-card" ref={reportSectionRef}>
                 {!model.report ? (
-                  <p className="muted">
-                    Запустите анализ, чтобы получить структурированный отчет по рискам, ключевым условиям, цитатам и
-                    правовым источникам.
-                  </p>
+                  <div className="report-empty-state">
+                    <p className="muted report-empty-text">
+                      Запустите анализ, чтобы получить структурированный отчёт по рискам, ключевым условиям, цитатам и
+                      правовым источникам.
+                    </p>
+                    {model.analyzeState === "loading" ? (
+                      <p className="muted report-loading-text">Анализ выполняется. Отчёт появится сразу после завершения.</p>
+                    ) : null}
+                  </div>
                 ) : (
                   <>
                     <ReportTabs
@@ -493,11 +587,16 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
               <div className="activity-list">
                 {recentDocuments.map((doc) => (
                   <article key={doc.document_id} className="activity-item">
-                    <div>
+                    <div className={`activity-file-icon ${fileTypeLabel(doc.filename).toLowerCase()}`} aria-hidden>
+                      {fileTypeLabel(doc.filename) === "PDF" ? "PDF" : "W"}
+                    </div>
+                    <div className="activity-item-main">
                       <strong>{doc.filename}</strong>
                       <p className="muted">{formatDateTime(doc.created_at)}</p>
                     </div>
-                    <StatusBadge value={doc.status} />
+                    <div className="activity-item-meta">
+                      <StatusBadge value={doc.status} />
+                    </div>
                   </article>
                 ))}
               </div>
@@ -507,9 +606,18 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
           <section className="card side-card">
             <h3>Как это работает?</h3>
             <ol className="how-list">
-              <li>Загрузите договор в формате PDF или DOCX.</li>
-              <li>Нажмите «Запустить анализ», система выполнит обработку и анализ.</li>
-              <li>Получите структурированный отчет с пояснениями и цитатами.</li>
+              <li>
+                <span className="how-step-number">1</span>
+                <span>Загрузите договор в формате PDF или DOCX.</span>
+              </li>
+              <li>
+                <span className="how-step-number">2</span>
+                <span>Нажмите «Запустить анализ», система выполнит обработку и анализ.</span>
+              </li>
+              <li>
+                <span className="how-step-number">3</span>
+                <span>Получите структурированный отчёт с пояснениями и цитатами.</span>
+              </li>
             </ol>
             <p className="muted">
               Правовые выводы требуют дополнительной проверки юристом в контексте вашей ситуации.
@@ -517,6 +625,12 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
           </section>
 
           <section className="card side-card">
+            <h3 className="disclaimer-title">
+              <span className="disclaimer-icon" aria-hidden>
+                i
+              </span>
+              Дисклеймер
+            </h3>
             <p className="muted">Система выполняет предварительный анализ и не заменяет профессионального юриста.</p>
           </section>
         </aside>

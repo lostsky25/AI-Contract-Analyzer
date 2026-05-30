@@ -8,6 +8,8 @@ from app.agents.retrieval_agent import RetrievalAgent
 from app.services.document_repository import update_document_status
 from app.services.report_store import save_report
 
+INFO_WARNING_PREFIX = "INFO:"
+
 
 class Orchestrator:
     def __init__(self) -> None:
@@ -73,7 +75,15 @@ class Orchestrator:
                 chunks_count=retrieval.get("chunks_count", raw["chunks_count"]),
             )
             assembled["legal_sources"] = legal_research.get("legal_sources", [])
-            assembled["warnings"] = list(legal_research.get("warnings", []))
+            process_warnings = list(raw.get("warnings", []))
+            legal_warnings = list(legal_research.get("warnings", []))
+            merged_warnings = list(dict.fromkeys(process_warnings + legal_warnings))
+            actionable_warnings = [
+                warning
+                for warning in merged_warnings
+                if not str(warning).strip().startswith(INFO_WARNING_PREFIX)
+            ]
+            assembled["warnings"] = actionable_warnings
             if assembled["warnings"]:
                 assembled["status"] = "done_with_warnings"
             report = self.report_agent.run(assembled)

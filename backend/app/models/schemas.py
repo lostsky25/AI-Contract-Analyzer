@@ -253,3 +253,10 @@ class DocumentAskResponse(BaseModel):
     citations: list[DocumentAskCitation]
     disclaimer: str
 
+
+class ProviderErrorResponse(BaseModel):
+    detail: str
+    code: str
+    provider: str
+    retryable: bool
+

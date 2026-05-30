@@ -42,3 +42,17 @@ FastAPI loads `backend/.env` by absolute path (`app/config.py`).
 
 - Do not commit `backend/.env` or `frontend/.env`.
 - Do not put real keys in `*.env.example`.
+
+## OCR model routing notes
+
+- `OPENROUTER_MODEL_OCR_VLM` is the preferred VLM OCR model setting.
+- `OPENROUTER_OCR_MODEL` is a legacy alias used only when `OPENROUTER_MODEL_OCR_VLM` is empty.
+- `OCR_TESSERACT_LANG=rus+eng` is the default local OCR language setting.
+
+## DeepSeek fallback behavior
+
+- `OPENROUTER_MODEL_FALLBACK` (for example `deepseek/deepseek-v4-flash:free`) is used only for text LLM fallback.
+- It is triggered only when a primary text model call fails.
+- It is not used for VLM OCR.
+- It is not used for LegalResearchAgent direct web-search calls.
+- Therefore DeepSeek may not appear in OpenRouter dashboard when primary models succeed.

@@ -1,9 +1,13 @@
 import pytest
 
 from app.agents.orchestrator import Orchestrator
+from app.services.text_extractor import VLM_OCR_INFO_MESSAGE
 
 
 class _DocProcessingStub:
+    def __init__(self, warnings: list[str] | None = None) -> None:
+        self._warnings = warnings or []
+
     def run(self, _document_id: str, _file_path: str) -> dict:
         return {
             "raw": {
@@ -14,6 +18,7 @@ class _DocProcessingStub:
                 "text_length": 4,
                 "chunk_records": [],
                 "pages": [],
+                "warnings": self._warnings,
             }
         }
 
@@ -67,61 +72,110 @@ class _AnalysisStub:
         }
 
 
-def test_orchestrator_sets_done_with_warnings_from_legal_warnings(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    statuses: list[str] = []
+def _build_orchestrator(process_warnings: list[str], legal_result: dict | Exception) -> Orchestrator:
     orchestrator = Orchestrator()
-    orchestrator.document_processing_agent = _DocProcessingStub()
+    orchestrator.document_processing_agent = _DocProcessingStub(process_warnings)
     orchestrator.retrieval_agent = _RetrievalStub()
     orchestrator.analysis_agent = _AnalysisStub()
-    orchestrator.legal_research_agent = type(
-        "LegalStub",
-        (),
-        {
-            "run": lambda *args, **kwargs: {
-                "legal_sources": [],
-                "warnings": ["Legal web search provider is unavailable."],
-            }
-        },
-    )()
+
+    if isinstance(legal_result, Exception):
+        orchestrator.legal_research_agent = type(
+            "LegalStub",
+            (),
+            {"run": lambda *args, **kwargs: (_ for _ in ()).throw(legal_result)},
+        )()
+    else:
+        orchestrator.legal_research_agent = type(
+            "LegalStub",
+            (),
+            {"run": lambda *args, **kwargs: legal_result},
+        )()
+    return orchestrator
+
+
+def _capture_status_updates(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    statuses: list[str] = []
 
     def fake_update_document_status(*, status: str, **_kwargs):
         statuses.append(status)
         return None
 
     monkeypatch.setattr("app.agents.orchestrator.update_document_status", fake_update_document_status)
+    return statuses
+
+
+def test_orchestrator_ignores_vlm_info_for_warning_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    statuses = _capture_status_updates(monkeypatch)
+    orchestrator = _build_orchestrator(
+        process_warnings=[VLM_OCR_INFO_MESSAGE],
+        legal_result={"legal_sources": [], "warnings": []},
+    )
 
     report = orchestrator.run(
         db=object(),
-        document_id="doc-status-1",
+        document_id="doc-status-info-only",
+        file_path="/tmp/demo.docx",
+        user_id="user-1",
+    )
+
+    assert report["status"] == "done"
+    assert report["warnings"] == []
+    assert statuses[-1] == "done"
+
+
+def test_orchestrator_sets_done_with_warnings_from_process_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    statuses = _capture_status_updates(monkeypatch)
+    orchestrator = _build_orchestrator(
+        process_warnings=["Used local OCR fallback."],
+        legal_result={"legal_sources": [], "warnings": []},
+    )
+
+    report = orchestrator.run(
+        db=object(),
+        document_id="doc-status-ocr-warning",
         file_path="/tmp/demo.docx",
         user_id="user-1",
     )
 
     assert report["status"] == "done_with_warnings"
+    assert "Used local OCR fallback." in report["warnings"]
+    assert statuses[-1] == "done_with_warnings"
+
+
+def test_orchestrator_sets_done_with_warnings_from_legal_warnings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    statuses = _capture_status_updates(monkeypatch)
+    orchestrator = _build_orchestrator(
+        process_warnings=[],
+        legal_result={
+            "legal_sources": [],
+            "warnings": ["Legal web search provider is unavailable."],
+        },
+    )
+
+    report = orchestrator.run(
+        db=object(),
+        document_id="doc-status-legal-warning",
+        file_path="/tmp/demo.docx",
+        user_id="user-1",
+    )
+
+    assert report["status"] == "done_with_warnings"
+    assert report["warnings"]
     assert statuses[-1] == "done_with_warnings"
 
 
 def test_orchestrator_handles_legal_research_exception_as_warning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    statuses: list[str] = []
-    orchestrator = Orchestrator()
-    orchestrator.document_processing_agent = _DocProcessingStub()
-    orchestrator.retrieval_agent = _RetrievalStub()
-    orchestrator.analysis_agent = _AnalysisStub()
-    orchestrator.legal_research_agent = type(
-        "LegalStub",
-        (),
-        {"run": lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("boom"))},
-    )()
-
-    def fake_update_document_status(*, status: str, **_kwargs):
-        statuses.append(status)
-        return None
-
-    monkeypatch.setattr("app.agents.orchestrator.update_document_status", fake_update_document_status)
+    statuses = _capture_status_updates(monkeypatch)
+    orchestrator = _build_orchestrator(
+        process_warnings=[],
+        legal_result=RuntimeError("boom"),
+    )
 
     report = orchestrator.run(
         db=object(),

@@ -27,6 +27,12 @@ type QuoteRow = {
   page: number | null;
 };
 
+type ReportTab = {
+  id: TabId;
+  label: string;
+  count?: number;
+};
+
 export function ReportTabs({
   report,
   questionInput,
@@ -66,13 +72,21 @@ export function ReportTabs({
     });
   }, [report.key_terms, report.risks]);
 
-  const tabs = useMemo(
+  const groupedQuotes = useMemo(
+    () => ({
+      risk: quoteRows.filter((row) => row.source === "risk"),
+      keyTerm: quoteRows.filter((row) => row.source === "key_term")
+    }),
+    [quoteRows]
+  );
+
+  const tabs = useMemo<ReportTab[]>(
     () => [
       { id: "overview" as const, label: "Обзор" },
-      { id: "risks" as const, label: `Риски (${report.risks.length})` },
-      { id: "terms" as const, label: `Ключевые условия (${report.key_terms.length})` },
-      { id: "quotes" as const, label: `Цитаты (${quoteRows.length})` },
-      { id: "sources" as const, label: `Правовые источники (${report.legal_sources.length})` },
+      { id: "risks" as const, label: "Риски", count: report.risks.length },
+      { id: "terms" as const, label: "Ключевые условия", count: report.key_terms.length },
+      { id: "quotes" as const, label: "Цитаты", count: quoteRows.length },
+      { id: "sources" as const, label: "Правовые источники", count: report.legal_sources.length },
       { id: "questions" as const, label: "Вопросы" }
     ],
     [quoteRows.length, report.key_terms.length, report.legal_sources.length, report.risks.length]
@@ -88,7 +102,8 @@ export function ReportTabs({
             className={`report-tab ${activeTab === tab.id ? "active" : ""}`}
             onClick={() => setActiveTab(tab.id)}
           >
-            {tab.label}
+            <span>{tab.label}</span>
+            {typeof tab.count === "number" ? <span className="report-tab-count">{tab.count}</span> : null}
           </button>
         ))}
       </div>
@@ -134,15 +149,37 @@ export function ReportTabs({
         {activeTab === "quotes" ? (
           <div className="quotes-list">
             {quoteRows.length ? (
-              quoteRows.map((item, index) => (
-                <article className="quote-card" key={`${item.title}-${index}`}>
-                  <div className="quote-header">
-                    <p className="quote-title">{item.title}</p>
-                    <span className={`quote-source quote-source-${item.source}`}>{item.sourceLabel}</span>
-                  </div>
-                  <EvidenceQuote quote={item.quote} page={item.page} sourceLabel="Цитата" />
-                </article>
-              ))
+              <>
+                {groupedQuotes.risk.length ? (
+                  <section className="quotes-group">
+                    <h4 className="quotes-group-title">Риск</h4>
+                    {groupedQuotes.risk.map((item, index) => (
+                      <article className="quote-card" key={`risk-${item.title}-${index}`}>
+                        <div className="quote-header">
+                          <p className="quote-title">{item.title}</p>
+                          <span className={`quote-source quote-source-${item.source}`}>{item.sourceLabel}</span>
+                        </div>
+                        <EvidenceQuote quote={item.quote} page={item.page} sourceLabel="Цитата" />
+                      </article>
+                    ))}
+                  </section>
+                ) : null}
+
+                {groupedQuotes.keyTerm.length ? (
+                  <section className="quotes-group">
+                    <h4 className="quotes-group-title">Ключевое условие</h4>
+                    {groupedQuotes.keyTerm.map((item, index) => (
+                      <article className="quote-card" key={`term-${item.title}-${index}`}>
+                        <div className="quote-header">
+                          <p className="quote-title">{item.title}</p>
+                          <span className={`quote-source quote-source-${item.source}`}>{item.sourceLabel}</span>
+                        </div>
+                        <EvidenceQuote quote={item.quote} page={item.page} sourceLabel="Цитата" />
+                      </article>
+                    ))}
+                  </section>
+                ) : null}
+              </>
             ) : (
               <p className="muted">Цитаты не найдены.</p>
             )}

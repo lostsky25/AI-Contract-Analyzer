@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -59,6 +60,7 @@ from app.services.rag_service import save_chunk_records, save_chunks, semantic_r
 from app.services.text_extractor import extract_text
 from app.services.ocr_service import run_ocr
 from app.services.report_store import get_report
+from app.services.openrouter_service import ProviderError
 from app.models.db_models import User
 
 router = APIRouter()
@@ -74,6 +76,37 @@ def _get_owned_document_or_404(db: Session, document_id: str, current_user: User
             detail="Document not found.",
         )
     return document
+
+
+def _provider_http_status(error: ProviderError) -> int:
+    if error.code == "openrouter_rate_limited":
+        return status.HTTP_429_TOO_MANY_REQUESTS
+    if error.code in {
+        "openrouter_timeout",
+        "openrouter_unavailable",
+    }:
+        return status.HTTP_503_SERVICE_UNAVAILABLE
+    if error.code in {
+        "openrouter_auth_failed",
+        "openrouter_missing_key",
+        "openrouter_model_not_found",
+        "openrouter_bad_response",
+        "openrouter_unknown_error",
+    }:
+        return status.HTTP_503_SERVICE_UNAVAILABLE
+    return status.HTTP_503_SERVICE_UNAVAILABLE
+
+
+def _provider_error_response(error: ProviderError) -> JSONResponse:
+    return JSONResponse(
+        status_code=_provider_http_status(error),
+        content={
+            "detail": error.message,
+            "code": error.code,
+            "provider": error.provider,
+            "retryable": error.retryable,
+        },
+    )
 
 
 @router.get("/health")
@@ -96,6 +129,8 @@ async def run_orchestrator(
             user_id=current_user.id,
             legal_web_search_enabled=payload.legal_web_search_enabled,
         )
+    except ProviderError as exc:
+        return _provider_error_response(exc)
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -376,6 +411,8 @@ async def process_uploaded_document(
 
     try:
         result = process_document(payload.document_id, owned_document.file_path)
+    except ProviderError as exc:
+        return _provider_error_response(exc)
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -498,6 +535,8 @@ async def analyze_document_text(
 
     try:
         report = analyze_contract(context=context)
+    except ProviderError as exc:
+        return _provider_error_response(exc)
     except RuntimeError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

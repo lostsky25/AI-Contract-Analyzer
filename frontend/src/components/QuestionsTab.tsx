@@ -23,6 +23,11 @@ export function QuestionsTab({
   onQuestionChange,
   onAsk
 }: QuestionsTabProps) {
+  const suggestedQuestions = [
+    "Какие штрафные санкции предусмотрены договором?",
+    "Есть ли условия одностороннего изменения договора?",
+    "Какие пункты требуют согласования с юристом?"
+  ];
   const confidence = questionResult?.confidence ?? "unknown";
   const confidenceClass = `severity severity-${confidence}`;
   const citations = questionResult?.citations ?? [];
@@ -30,6 +35,19 @@ export function QuestionsTab({
   return (
     <div className="questions-tab">
       <p className="muted">Задайте вопрос по тексту загруженного договора.</p>
+      <div className="qa-suggestions">
+        {suggestedQuestions.map((question) => (
+          <button
+            key={question}
+            className="qa-suggestion-chip"
+            type="button"
+            onClick={() => onQuestionChange(question)}
+            disabled={questionState === "loading"}
+          >
+            {question}
+          </button>
+        ))}
+      </div>
       <div className="qa-form">
         <input
           type="text"
@@ -48,6 +66,9 @@ export function QuestionsTab({
 
       {questionResult ? (
         <article className="qa-answer">
+          <p>
+            <strong>Вопрос:</strong> {questionResult.question}
+          </p>
           <p>
             <strong>Ответ:</strong> {questionResult.answer}
           </p>

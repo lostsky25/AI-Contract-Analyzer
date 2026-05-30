@@ -1,4 +1,4 @@
-﻿import type { PropsWithChildren } from "react";
+﻿import type { PropsWithChildren, ReactNode } from "react";
 
 type NavAction = "home" | "documents" | "reports";
 
@@ -16,13 +16,51 @@ type AppShellProps = PropsWithChildren<{
 type NavItem = {
   id: NavAction;
   label: string;
-  icon: string;
+  icon: ReactNode;
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "home", label: "Главная", icon: "⌂" },
-  { id: "documents", label: "Документы", icon: "▦" },
-  { id: "reports", label: "Отчеты", icon: "▤" }
+  {
+    id: "home",
+    label: "Главная",
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden>
+        <path d="M3 11.5L12 4l9 7.5v8a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="currentColor" />
+      </svg>
+    )
+  },
+  {
+    id: "documents",
+    label: "Документы",
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden>
+        <path
+          d="M7 3h7l5 5v12.5A1.5 1.5 0 0 1 17.5 22h-11A1.5 1.5 0 0 1 5 20.5v-16A1.5 1.5 0 0 1 6.5 3zm6 1.5V9h4.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )
+  },
+  {
+    id: "reports",
+    label: "Отчёты",
+    icon: (
+      <svg viewBox="0 0 24 24" aria-hidden>
+        <path
+          d="M5 5.5A1.5 1.5 0 0 1 6.5 4h11A1.5 1.5 0 0 1 19 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18.5zm4 2.5h6m-6 4h6m-6 4h3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )
+  }
 ];
 
 export function AppShell({
@@ -66,13 +104,19 @@ export function AppShell({
           </nav>
 
           <div className="sidebar-user">
-            <div className="user-avatar">{(userLabel?.[0] ?? "U").toUpperCase()}</div>
-            <div className="user-meta">
-              <strong>{userLabel ?? "Пользователь"}</strong>
-              <span>{userLabel ? `${userLabel}@app.local` : "user@app.local"}</span>
+            <div className="sidebar-user-head">
+              <div className="user-avatar">{(userLabel?.[0] ?? "A").toUpperCase()}</div>
+              <div className="user-meta">
+                <strong>{userLabel ?? "Alex"}</strong>
+                <span>{userLabel ? `${userLabel.toLowerCase()}@app.local` : "alex@app.local"}</span>
+              </div>
+              <span className="user-caret" aria-hidden>
+                v
+              </span>
             </div>
             {onLogout ? (
               <button className="button ghost sidebar-logout" onClick={onLogout} type="button">
+                <span aria-hidden>-&gt;</span>
                 Выйти
               </button>
             ) : null}
@@ -83,7 +127,12 @@ export function AppShell({
           <header className={`workspace-topbar ${searchEnabled ? "" : "no-search"}`}>
             {searchEnabled ? (
               <div className="search-wrap">
-                <span className="search-icon">⌕</span>
+                <span className="search-icon" aria-hidden>
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
+                    <path d="M16 16l5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </span>
                 <input
                   type="search"
                   value={searchQuery}
@@ -108,10 +157,29 @@ export function AppShell({
                 {backendHealthy ? "Backend online" : "Backend offline"}
               </span>
               <button className="icon-btn" type="button" aria-label="Notifications">
-                ⦿
+                <span aria-hidden>
+                  <svg viewBox="0 0 24 24">
+                    <path
+                      d="M12 4a5 5 0 0 1 5 5v3.5l1.6 2.4a1 1 0 0 1-.8 1.6H6.2a1 1 0 0 1-.8-1.6L7 12.5V9a5 5 0 0 1 5-5zm0 15a2.2 2.2 0 0 0 2-1.3h-4A2.2 2.2 0 0 0 12 19z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </span>
               </button>
               <button className="icon-btn" type="button" aria-label="Help">
-                ?
+                <span aria-hidden>
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                    <path
+                      d="M9.8 9.4a2.4 2.4 0 1 1 3.2 2.2c-.8.3-1.2.8-1.2 1.6v.3m1.2 3.1h.1"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
               </button>
             </div>
           </header>

@@ -37,19 +37,19 @@
 
 7. **ReportAgent** (no LLM)  
    Normalizes and validates report fields against `docs/report-schema.json`.  
-   Safe fallback: missing `quote` ← `explanation`/`value`; `page` may stay `null`.
+   Safe fallback: missing `quote` в†ђ `explanation`/`value`; `page` may stay `null`.
 
 ### Page-aware pipeline notes
 
 - **PDF:** one entry per PDF page; chunks inherit that page.
-- **DOCX:** entire document as `page: 1` only — no real pagination in MVP (see `docs/api-contract.md`).
+- **DOCX:** entire document as `page: 1` only вЂ” no real pagination in MVP (see `docs/api-contract.md`).
 - **OCR:** PDF via `run_ocr_pages` is page-aware; scanned images use `page: 1`.
 
 8. **DocumentQAAgent** (LLM step, RAG-only)  
    Model: `OPENROUTER_MODEL_QA` (`nvidia/nemotron-3-super-120b-a12b:free`)  
    Fallback: `OPENROUTER_MODEL_FALLBACK` (`deepseek/deepseek-v4-flash:free`)  
-   Retrieval: `semantic_retrieval(document_id, question)` — top-k chunks from ChromaDB  
-   **No web search** — answers only from uploaded contract text.
+   Retrieval: `semantic_retrieval(document_id, question)` вЂ” top-k chunks from ChromaDB  
+   **No web search** вЂ” answers only from uploaded contract text.
 
 ## Workflow
 
@@ -64,3 +64,12 @@
 - Search results are preliminary references, not verified legal advice.
 - For production, use a legal provider/API with proper licensing instead of relying only on public page snippets.
 - If results are unavailable, returns empty `legal_sources` with `limitations` and does not break full analysis (`done_with_warnings`).
+
+## Guardrails summary
+
+- User question is normalized and validated before Q&A (`normalize_user_question`).
+- Prompt injection attempts in user input are refused with a safe response payload (HTTP 200).
+- Off-topic questions are refused with a safe response payload (HTTP 200).
+- DocumentQA answers are accepted only when citations are grounded in retrieved evidence.
+- Contract and derived context are explicitly marked as untrusted data in AnalysisAgent and LegalResearchAgent prompts.
+

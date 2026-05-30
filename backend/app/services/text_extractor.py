@@ -1,3 +1,4 @@
+import logging
 import re
 from pathlib import Path
 
@@ -6,7 +7,11 @@ from docx import Document
 
 from app.config import settings
 from app.services.llm_service import extract_text_from_image_with_vlm
+from app.services.openrouter_service import ProviderError
 from app.services.ocr_service import run_ocr_image_bytes
+
+logger = logging.getLogger(__name__)
+VLM_OCR_INFO_MESSAGE = "INFO: Для части страниц использовано VLM-распознавание текста."
 
 
 def _extract_docx_pages(file_path: Path) -> list[dict]:
@@ -39,16 +44,12 @@ def _is_low_quality_text(text: str) -> bool:
     if not letters:
         return True
 
-    cyrillic_count = sum(
-        1
-        for char in letters
-        if ("а" <= char.lower() <= "я") or char.lower() == "ё"
-    )
+    cyrillic_count = sum(1 for char in letters if re.match(r"[А-Яа-яЁё]", char))
     latin_count = sum(1 for char in letters if "a" <= char.lower() <= "z")
     if cyrillic_count > 0 and latin_count > cyrillic_count * 2:
         return True
 
-    allowed_punct = set(",.;:!?()[]{}\"'/-%№")
+    allowed_punct = set(',.;:!?()[]{}"\'/-%№')
     noisy_symbols = sum(
         1
         for char in normalized
@@ -67,6 +68,38 @@ def _render_pdf_page_to_png_bytes(page: fitz.Page, dpi: int) -> bytes:
     return pixmap.tobytes("png")
 
 
+def _resolve_vlm_configuration() -> tuple[bool, str, str | None, list[str]]:
+    warnings: list[str] = []
+
+    provider = settings.ocr_provider.strip().lower()
+    vlm_enabled = provider == "hybrid" and settings.ocr_use_vlm
+
+    preferred_vlm_model = str(settings.openrouter_model_ocr_vlm or "").strip()
+    legacy_vlm_model = str(settings.openrouter_ocr_model or "").strip()
+    has_api_key = bool((settings.openrouter_api_key or "").strip())
+
+    if preferred_vlm_model:
+        model = preferred_vlm_model
+    elif legacy_vlm_model:
+        model = legacy_vlm_model
+        alias_warning = (
+            "OPENROUTER_MODEL_OCR_VLM is not set; using legacy OPENROUTER_OCR_MODEL."
+        )
+        warnings.append(alias_warning)
+        logger.warning(alias_warning)
+    else:
+        model = ""
+
+    if not vlm_enabled:
+        return False, model, "VLM OCR is disabled by OCR settings; used local OCR fallback.", warnings
+    if not has_api_key:
+        return False, model, "OpenRouter API key is missing; used local OCR fallback.", warnings
+    if not model:
+        return False, model, "VLM OCR model is not configured; used local OCR fallback.", warnings
+
+    return True, model, None, warnings
+
+
 def _extract_pdf_pages_hybrid(file_path: Path) -> tuple[list[dict], list[str], bool]:
     pages: list[dict] = []
     warnings: list[str] = []
@@ -75,11 +108,10 @@ def _extract_pdf_pages_hybrid(file_path: Path) -> tuple[list[dict], list[str], b
     used_tesseract = False
     low_quality_pages = 0
     vlm_failure_happened = False
+    vlm_failure_warning: str | None = None
 
-    provider = settings.ocr_provider.strip().lower()
-    vlm_enabled = provider == "hybrid" and settings.ocr_use_vlm
-    vlm_model = settings.openrouter_model_ocr_vlm or settings.openrouter_ocr_model
-    vlm_available = bool(settings.openrouter_api_key and vlm_model)
+    vlm_available, vlm_model, vlm_disabled_warning, config_warnings = _resolve_vlm_configuration()
+    warnings.extend(config_warnings)
 
     with fitz.open(str(file_path)) as pdf_document:
         total_pages = len(pdf_document)
@@ -92,7 +124,7 @@ def _extract_pdf_pages_hybrid(file_path: Path) -> tuple[list[dict], list[str], b
             low_quality_pages += 1
             image_bytes = _render_pdf_page_to_png_bytes(page, settings.ocr_vlm_dpi)
 
-            if vlm_enabled and vlm_available and index <= settings.ocr_vlm_max_pages:
+            if vlm_available and index <= settings.ocr_vlm_max_pages:
                 try:
                     vlm_text = extract_text_from_image_with_vlm(
                         image_bytes=image_bytes,
@@ -104,8 +136,25 @@ def _extract_pdf_pages_hybrid(file_path: Path) -> tuple[list[dict], list[str], b
                         used_vlm = True
                         used_ocr = True
                         continue
+                except ProviderError as exc:
+                    vlm_failure_happened = True
+                    if exc.code == "openrouter_model_not_found":
+                        vlm_failure_warning = (
+                            "VLM OCR model is unavailable in OpenRouter; used local OCR fallback."
+                        )
+                        # Avoid repeated failing calls on next pages.
+                        vlm_available = False
+                    elif exc.code == "openrouter_rate_limited":
+                        vlm_failure_warning = (
+                            "VLM OCR rate limit exceeded; used local OCR fallback."
+                        )
+                    elif exc.code == "openrouter_timeout":
+                        vlm_failure_warning = "VLM OCR timed out; used local OCR fallback."
+                    else:
+                        vlm_failure_warning = "VLM OCR request failed; used local OCR fallback."
                 except Exception:
                     vlm_failure_happened = True
+                    vlm_failure_warning = "VLM OCR request failed; used local OCR fallback."
 
             try:
                 tesseract_text = run_ocr_image_bytes(image_bytes).strip()
@@ -121,21 +170,21 @@ def _extract_pdf_pages_hybrid(file_path: Path) -> tuple[list[dict], list[str], b
             if text_layer:
                 pages.append({"page": index, "text": text_layer, "source": "text_layer"})
 
-        if vlm_enabled and total_pages > settings.ocr_vlm_max_pages:
+        if vlm_available and total_pages > settings.ocr_vlm_max_pages:
             warnings.append(
-                f"VLM OCR обработал только первые {settings.ocr_vlm_max_pages} страниц из {total_pages} из-за ограничения MVP."
+                f"VLM OCR processed only first {settings.ocr_vlm_max_pages} pages out of {total_pages}."
             )
 
     if used_vlm:
-        warnings.append("Для части страниц использовано VLM-распознавание текста.")
+        warnings.append(VLM_OCR_INFO_MESSAGE)
 
-    if vlm_enabled and (not vlm_available or vlm_failure_happened) and low_quality_pages > 0:
-        warnings.append(
-            "VLM OCR недоступен, использовано локальное OCR. Качество распознавания может быть ниже."
-        )
+    if low_quality_pages > 0 and vlm_disabled_warning:
+        warnings.append(vlm_disabled_warning)
+    elif low_quality_pages > 0 and vlm_failure_happened:
+        warnings.append(vlm_failure_warning or "VLM OCR request failed; used local OCR fallback.")
 
-    if low_quality_pages > 0 and (used_tesseract or used_vlm):
-        warnings.append("Качество распознавания текста может быть снижено.")
+    if low_quality_pages > 0 and used_tesseract:
+        warnings.append("Использовано локальное OCR. Качество может быть ниже.")
 
     return pages, warnings, used_ocr
 

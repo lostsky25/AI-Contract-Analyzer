@@ -14,9 +14,14 @@ export function KeyTermsList({ terms }: KeyTermsListProps) {
     <div className="key-terms-list">
       {terms.map((term, index) => (
         <article className="term-card" key={`${term.title}-${index}`}>
-          <div className="term-head">
-            <h4>{term.title}</h4>
-            <span className="term-value">{term.value}</span>
+          <div className="term-layout">
+            <div className="term-head">
+              <h4>{term.title}</h4>
+              <span className="term-value">{term.value}</span>
+            </div>
+            <span className="term-chevron" aria-hidden>
+              ›
+            </span>
           </div>
           <EvidenceQuote quote={term.quote} page={term.page} sourceLabel="Цитата" />
         </article>

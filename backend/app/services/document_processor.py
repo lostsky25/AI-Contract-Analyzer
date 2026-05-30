@@ -27,7 +27,7 @@ def process_document(document_id: str, file_path: str) -> dict:
             ocr_text = run_ocr(file_path)
             pages = [{"page": 1, "text": ocr_text}] if ocr_text else []
         used_ocr = True
-        warnings.append("Качество распознавания текста может быть снижено.")
+        warnings.append("Использовано OCR извлечение. Качество может быть ниже.")
 
     pages = [
         {

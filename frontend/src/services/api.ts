@@ -26,16 +26,37 @@ const API_BASE_URL = normalizeApiBaseUrl(
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api"
 );
 const AUTH_TOKEN_KEY = "auth_token";
+export const AUTH_EXPIRED_EVENT = "auth:expired";
+
+type ApiErrorKind = "timeout" | "http";
+
+type ParsedErrorPayload = {
+  message: string;
+  code?: string;
+  provider?: string;
+  retryable?: boolean;
+};
 
 class ApiError extends Error {
   status?: number;
-  kind?: "timeout" | "http";
+  kind?: ApiErrorKind;
+  code?: string;
+  provider?: string;
+  retryable?: boolean;
 
-  constructor(message: string, status?: number, kind: "timeout" | "http" = "http") {
+  constructor(
+    message: string,
+    status?: number,
+    kind: ApiErrorKind = "http",
+    payload?: Omit<ParsedErrorPayload, "message">
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.kind = kind;
+    this.code = payload?.code;
+    this.provider = payload?.provider;
+    this.retryable = payload?.retryable;
   }
 }
 
@@ -47,14 +68,20 @@ function isEndpointUnavailable(error: unknown): boolean {
   );
 }
 
-function normalizeError(payload: unknown): string {
+function parseErrorPayload(payload: unknown): ParsedErrorPayload {
+  let message = "Не удалось выполнить запрос к серверу";
+  let code: string | undefined;
+  let provider: string | undefined;
+  let retryable: boolean | undefined;
+
   if (payload && typeof payload === "object" && "detail" in payload) {
+    const asRecord = payload as Record<string, unknown>;
     const detail = (payload as { detail: unknown }).detail;
     if (typeof detail === "string") {
-      return detail;
+      message = detail;
     }
     if (Array.isArray(detail)) {
-      return detail
+      message = detail
         .map((entry) => {
           if (entry && typeof entry === "object" && "msg" in entry) {
             return String((entry as { msg: unknown }).msg);
@@ -63,8 +90,17 @@ function normalizeError(payload: unknown): string {
         })
         .join("; ");
     }
+    if (typeof asRecord.code === "string") {
+      code = asRecord.code;
+    }
+    if (typeof asRecord.provider === "string") {
+      provider = asRecord.provider;
+    }
+    if (typeof asRecord.retryable === "boolean") {
+      retryable = asRecord.retryable;
+    }
   }
-  return "Не удалось выполнить запрос к серверу";
+  return { message, code, provider, retryable };
 }
 
 type RequestInitWithTimeout = RequestInit & {
@@ -116,7 +152,10 @@ async function requestOnce<T>(path: string, requestInit: RequestInit, timeoutMs:
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new ApiError("REQUEST_TIMEOUT", undefined, "timeout");
+      throw new ApiError("REQUEST_TIMEOUT", undefined, "timeout", {
+        code: "request_timeout",
+        retryable: true
+      });
     }
     throw error;
   } finally {
@@ -125,13 +164,25 @@ async function requestOnce<T>(path: string, requestInit: RequestInit, timeoutMs:
 
   if (!response.ok) {
     let message = `HTTP ${response.status}`;
+    let parsed: ParsedErrorPayload | undefined;
     try {
       const payload = (await response.json()) as unknown;
-      message = normalizeError(payload);
+      parsed = parseErrorPayload(payload);
+      message = parsed.message;
     } catch {
       // Keep fallback status message.
     }
-    throw new ApiError(message, response.status);
+    if (response.status === 401) {
+      clearAuthToken();
+      if (token) {
+        window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+      }
+      throw new ApiError("Сессия истекла. Войдите снова.", response.status, "http", parsed);
+    }
+    if (response.status === 403) {
+      throw new ApiError("Сессия истекла. Войдите снова.", response.status, "http", parsed);
+    }
+    throw new ApiError(message, response.status, "http", parsed);
   }
 
   return (await response.json()) as T;

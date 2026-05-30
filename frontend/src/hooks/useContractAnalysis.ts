@@ -37,6 +37,34 @@ function normalizeStatus(status: string | null | undefined): string {
 
 function parseError(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.status === 401 || error.status === 403) {
+      return "Сессия истекла. Войдите снова.";
+    }
+    if (error.code === "openrouter_timeout") {
+      return "AI-анализ занимает больше обычного. Попробуйте ещё раз или проверьте статус документа позже.";
+    }
+    if (error.kind === "timeout") {
+      return "Запрос к серверу выполняется дольше обычного. Попробуйте ещё раз.";
+    }
+    switch (error.code) {
+      case "openrouter_rate_limited":
+        return "Лимит AI-провайдера исчерпан. Бесплатная модель временно недоступна. Попробуйте позже или настройте другую модель.";
+      case "openrouter_auth_failed":
+        return "AI-провайдер отклонил ключ доступа. Проверьте OPENROUTER_API_KEY.";
+      case "openrouter_model_not_found":
+        return "Выбранная AI-модель недоступна в OpenRouter. Проверьте настройки модели.";
+      case "openrouter_missing_key":
+        return "AI-провайдер не настроен. Укажите OPENROUTER_API_KEY в окружении backend.";
+      case "openrouter_unavailable":
+        return "AI-провайдер временно недоступен. Попробуйте повторить анализ позже.";
+      case "openrouter_bad_response":
+        return "AI-провайдер вернул неожиданный ответ. Попробуйте повторить анализ позже.";
+      default:
+        break;
+    }
+    if (error.status === 500) {
+      return "На сервере произошла ошибка. Проверьте логи backend.";
+    }
     return error.message;
   }
   if (error instanceof Error) {

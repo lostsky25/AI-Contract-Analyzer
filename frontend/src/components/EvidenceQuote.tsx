@@ -23,8 +23,8 @@ export function EvidenceQuote({ quote, page, sourceLabel }: EvidenceQuoteProps) 
   return (
     <div className="evidence-quote">
       <div className="evidence-quote-head">
-        {sourceLabel ? <span className="status status-default">{sourceLabel}</span> : null}
-        {typeof page === "number" ? <span className="page-pill">стр. {page}</span> : null}
+        {sourceLabel ? <span className="quote-label">{sourceLabel}</span> : null}
+        {typeof page === "number" ? <span className="page-pill quote-page-pill">стр. {page}</span> : null}
       </div>
       {normalized ? <blockquote>{visibleText}</blockquote> : null}
       {isLong ? (

@@ -95,4 +95,4 @@ AI Contract Analyzer — сервис для предварительного а
 - мульти-язычность;
 - интеграция с CRM;
 - расширенный RAG pipeline;
-- Agentic RAG.
+- Agentic RAG

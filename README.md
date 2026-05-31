@@ -133,4 +133,4 @@ Unit-тесты: `cd backend && pytest`
 - мульти-язычность;
 - интеграция с CRM;
 - расширенный RAG pipeline;
-- Agentic RAG.
+- Agentic RAG

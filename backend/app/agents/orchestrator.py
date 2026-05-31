@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy.orm import Session
 
 from app.agents.analysis_agent import AnalysisAgent
@@ -9,6 +11,7 @@ from app.services.document_repository import update_document_status
 from app.services.report_store import save_report
 
 INFO_WARNING_PREFIX = "INFO:"
+logger = logging.getLogger(__name__)
 
 
 class Orchestrator:
@@ -46,10 +49,20 @@ class Orchestrator:
                 "terms_context", []
             )
             risk_output = self.analysis_agent.analyze_risks(merged_context)
-            key_terms = self.analysis_agent.extract_key_terms(
-                retrieval.get("terms_context", [])
-            )
+            if hasattr(self.analysis_agent, "extract_key_terms_with_grounding"):
+                key_terms_result = self.analysis_agent.extract_key_terms_with_grounding(
+                    retrieval.get("terms_context", [])
+                )
+                key_terms = list(key_terms_result.get("key_terms", []))
+                key_terms_warnings = list(key_terms_result.get("warnings", []))
+            else:
+                key_terms = self.analysis_agent.extract_key_terms(
+                    retrieval.get("terms_context", [])
+                )
+                key_terms_warnings = []
+
             risks = list(risk_output.get("risks", []))
+            analysis_warnings = list(risk_output.get("warnings", []))
             summary = str(risk_output.get("summary", "")) or raw.get("text_preview", "")
             legal_research: dict = {"legal_sources": [], "warnings": []}
             try:
@@ -63,9 +76,7 @@ class Orchestrator:
             except Exception:
                 legal_research = {
                     "legal_sources": [],
-                    "warnings": [
-                        "Проверка публичных правовых источников выполнена с ограничениями."
-                    ],
+                    "warnings": ["Проверка публичных правовых источников выполнена с ограничениями."],
                 }
             assembled = self.analysis_agent.assemble_report(
                 document_id=document_id,
@@ -76,8 +87,17 @@ class Orchestrator:
             )
             assembled["legal_sources"] = legal_research.get("legal_sources", [])
             process_warnings = list(raw.get("warnings", []))
+            retrieval_warnings = list(retrieval.get("warnings", []))
             legal_warnings = list(legal_research.get("warnings", []))
-            merged_warnings = list(dict.fromkeys(process_warnings + legal_warnings))
+            merged_warnings = list(
+                dict.fromkeys(
+                    process_warnings
+                    + retrieval_warnings
+                    + analysis_warnings
+                    + key_terms_warnings
+                    + legal_warnings
+                )
+            )
             actionable_warnings = [
                 warning
                 for warning in merged_warnings
@@ -104,3 +124,4 @@ class Orchestrator:
                 user_id=user_id,
             )
             raise
+

@@ -1,33 +1,135 @@
 {
-  "document_id": "string",
-  "status": "processing | done | failed | done_with_warnings",
-  "summary": "string",
-  "overall_risk": "low | medium | high | unknown",
-  "risks": [
-    {
-      "title": "string",
-      "severity": "low | medium | high | unknown",
-      "explanation": "string",
-      "quote": "string",
-      "page": 1
+  "schema_version": "2.0",
+  "report_type": "contract_report",
+  "notes": {
+    "contract_first": "risks and key_terms are derived from the uploaded contract only",
+    "legal_sources": "external legal references are returned separately and are never embedded into risks/key_terms",
+    "disclaimer_required": true
+  },
+  "status_policy": {
+    "canonical_statuses": [
+      "uploaded",
+      "processing",
+      "processed",
+      "analyzing",
+      "done",
+      "done_with_warnings",
+      "failed",
+      "failed_processing"
+    ],
+    "legacy_compatibility_statuses": [
+      "analyzed",
+      "indexed",
+      "extracted",
+      "ocr_completed",
+      "empty_text"
+    ],
+    "report_ready_statuses": [
+      "done",
+      "done_with_warnings"
+    ]
+  },
+  "warning_policy": {
+    "storage": "warnings: string[]",
+    "info_prefix": "INFO:",
+    "info_does_not_change_status_to_done_with_warnings": true
+  },
+  "legal_source_trust_policy": {
+    "grounded": "source was extracted from machine-readable provider metadata (search_results/citations/annotations/results/sources)",
+    "model_reported": "source was extracted from strict model JSON and passed validation, but requires manual verification",
+    "parser_priority": [
+      "metadata first",
+      "strict JSON fallback second",
+      "plain text URLs rejected"
+    ]
+  },
+  "provider_error_policy": {
+    "canonical_codes": [
+      "provider_missing_key",
+      "provider_rate_limited",
+      "provider_auth_failed",
+      "provider_model_not_found",
+      "provider_timeout",
+      "provider_unavailable",
+      "provider_bad_response",
+      "provider_unknown_error"
+    ],
+    "legacy_codes": [
+      "openrouter_missing_key",
+      "openrouter_rate_limited",
+      "openrouter_auth_failed",
+      "openrouter_model_not_found",
+      "openrouter_timeout",
+      "openrouter_unavailable",
+      "openrouter_bad_response",
+      "openrouter_unknown_error"
+    ],
+    "error_response_shape": {
+      "detail": "string",
+      "code": "provider_*",
+      "provider": "bothub|openrouter",
+      "retryable": true,
+      "legacy_code": "openrouter_* | null"
     }
-  ],
-  "key_terms": [
-    {
-      "title": "string",
-      "value": "string",
-      "quote": "string",
-      "page": 1
+  },
+  "contract_report": {
+    "document_id": "string",
+    "status": "done | done_with_warnings | failed",
+    "summary": "string",
+    "overall_risk": "low | medium | high | unknown",
+    "risks": [
+      {
+        "title": "string",
+        "severity": "low | medium | high | unknown",
+        "explanation": "string",
+        "quote": "string",
+        "page": "integer | null",
+        "chunk_id": "string"
+      }
+    ],
+    "key_terms": [
+      {
+        "title": "string",
+        "value": "string",
+        "explanation": "string",
+        "quote": "string",
+        "page": "integer | null",
+        "chunk_id": "string"
+      }
+    ],
+    "legal_sources": [
+      {
+        "title": "string",
+        "url": "string",
+        "snippet": "string",
+        "reason": "string",
+        "source_type": "consultant_plus | garant | pravo_gov | other_public_source",
+        "relevance": "low | medium | high | unknown",
+        "trust_tier": "grounded | model_reported"
+      }
+    ],
+    "warnings": [
+      "string"
+    ],
+    "disclaimer": "string",
+    "used_ocr": "boolean",
+    "chunks_count": "integer"
+  },
+  "process_response": {
+    "document_id": "string",
+    "status": "processed | empty_text",
+    "text_preview": "string",
+    "full_text": "string",
+    "text_length": "integer",
+    "chunks_count": "integer",
+    "used_ocr": "boolean",
+    "warnings": [
+      "string"
+    ],
+    "notes": {
+      "used_ocr_true_is_not_error": true,
+      "vlm_success_is_info": true,
+      "tesseract_fallback_is_warning": true
     }
-  ],
-  "legal_sources": [
-    {
-      "title": "string",
-      "url": "string",
-      "snippet": "string",
-      "source_type": "consultant_plus | garant | pravo_gov | other_public_source",
-      "relevance": "low | medium | high | unknown"
-    }
-  ],
-  "disclaimer": "Система выполняет предварительный анализ и не заменяет профессионального юриста."
+  }
 }

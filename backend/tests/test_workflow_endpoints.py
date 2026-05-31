@@ -138,6 +138,8 @@ def test_document_analyze_endpoint_with_mocked_orchestrator(
                     "snippet": "Обязательства сторон.",
                     "source_type": "consultant_plus",
                     "relevance": "medium",
+                    "trust_tier": "grounded",
+                    "reason": "Relevant to obligations.",
                 }
             ],
             "warnings": ["Public sources only."],
@@ -250,3 +252,5 @@ def test_documents_upload_creates_document(
     assert payload["document_id"]
     assert payload["status"] == "uploaded"
     assert len(stored) == 1
+
+

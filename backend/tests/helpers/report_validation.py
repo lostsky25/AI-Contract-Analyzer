@@ -11,8 +11,23 @@ LEGAL_SOURCE_TYPES = {
     "other_public_source",
 }
 LEGAL_RELEVANCE = {"low", "medium", "high", "unknown"}
-REPORT_STATUSES = {"processing", "done", "failed", "done_with_warnings"}
-OVERALL_RISK = {"low", "medium", "high", "unknown", "critical"}
+LEGAL_TRUST_TIERS = {"grounded", "model_reported"}
+REPORT_STATUSES = {
+    "uploaded",
+    "processing",
+    "processed",
+    "analyzing",
+    "done",
+    "done_with_warnings",
+    "failed",
+    "failed_processing",
+    "analyzed",
+    "indexed",
+    "extracted",
+    "ocr_completed",
+    "empty_text",
+}
+OVERALL_RISK = {"low", "medium", "high", "unknown"}
 
 
 def validate_report_schema(payload: dict[str, Any]) -> list[str]:
@@ -52,8 +67,14 @@ def validate_report_schema(payload: dict[str, Any]) -> list[str]:
             continue
         if not str(risk.get("title", "")).strip():
             errors.append(f"risks[{index}].title is required")
+        if not str(risk.get("severity", "")).strip():
+            errors.append(f"risks[{index}].severity is required")
+        if not str(risk.get("explanation", "")).strip():
+            errors.append(f"risks[{index}].explanation is required")
         if not isinstance(risk.get("quote", ""), str):
             errors.append(f"risks[{index}].quote must be a string")
+        if "chunk_id" not in risk:
+            errors.append(f"risks[{index}].chunk_id is required")
 
     for index, term in enumerate(payload.get("key_terms", [])):
         if not isinstance(term, dict):
@@ -61,6 +82,12 @@ def validate_report_schema(payload: dict[str, Any]) -> list[str]:
             continue
         if not str(term.get("title", "")).strip():
             errors.append(f"key_terms[{index}].title is required")
+        if not str(term.get("value", "")).strip():
+            errors.append(f"key_terms[{index}].value is required")
+        if "quote" not in term or not isinstance(term.get("quote", ""), str):
+            errors.append(f"key_terms[{index}].quote must be a string")
+        if "chunk_id" not in term:
+            errors.append(f"key_terms[{index}].chunk_id is required")
 
     for index, source in enumerate(payload.get("legal_sources", [])):
         if not isinstance(source, dict):
@@ -72,6 +99,9 @@ def validate_report_schema(payload: dict[str, Any]) -> list[str]:
         relevance = str(source.get("relevance", "unknown"))
         if relevance not in LEGAL_RELEVANCE:
             errors.append(f"legal_sources[{index}].relevance invalid: {relevance}")
+        trust_tier = str(source.get("trust_tier", "grounded"))
+        if trust_tier not in LEGAL_TRUST_TIERS:
+            errors.append(f"legal_sources[{index}].trust_tier invalid: {trust_tier}")
 
     return errors
 

@@ -1,23 +1,10 @@
 import json
-from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
 from app.config import settings
-
-
-@dataclass
-class ProviderError(ValueError):
-    provider: str
-    code: str
-    message: str
-    status_code: int | None = None
-    retryable: bool = False
-    raw_detail: str | None = None
-
-    def __str__(self) -> str:
-        return self.message
+from app.services.provider_errors import ProviderError
 
 
 def _sanitize_detail(payload: Any) -> str | None:

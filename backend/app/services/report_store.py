@@ -7,7 +7,11 @@ from app.services.document_repository import get_contract_report, save_contract_
 _REPORTS: dict[str, dict] = {}
 
 
-def save_report(document_id: str, report: dict, db: Session | None = None) -> None:
+def save_report(
+    document_id: str,
+    report: dict,
+    db: Session | None = None,
+) -> None:
     _REPORTS[document_id] = dict(report)
     if db is None:
         return

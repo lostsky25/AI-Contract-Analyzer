@@ -1,58 +1,142 @@
 # Environment variables
 
-## Files
+## Recommended MVP setup
 
-| File | In git | Purpose |
-|------|--------|---------|
-| `backend/.env.example` | Yes | Template — copy to `backend/.env` |
-| `backend/.env` | No | API secrets and settings |
-| `frontend/.env.example` | Yes | Template for local Vite |
-| `frontend/.env` | No | Optional; only for `npm run dev` outside Docker |
+Use one shared BotHub key for all primary AI paths:
 
-There is **no** root `.env` — backend and frontend each have their own.
+```env
+BOTHUB_API_KEY=...
+BOTHUB_API_BASE_URL=https://openai.bothub.chat/v1
 
-## Setup
-
-```bash
-cp backend/.env.example backend/.env
-# set OPENROUTER_API_KEY in backend/.env
-
-# optional, local frontend only:
-cp frontend/.env.example frontend/.env
+LLM_PROVIDER=bothub
+VISION_PROVIDER=bothub
+LEGAL_RESEARCH_PROVIDER=bothub_sonar
+LEGAL_WEB_SEARCH_ENABLED=true
+LEGAL_RESEARCH_ALLOW_MODEL_REPORTED_SOURCES=true
 ```
 
-## Docker Compose
+BotHub is used for:
+- Risk / KeyTerms / Q&A / text fallback
+- Vision OCR
+- LegalResearch
 
-- **api** — `env_file: backend/.env`; compose overrides `DATABASE_URL`, `UPLOAD_DIR`, `CHROMA_DB_DIR`, OCR paths for the container.
-- **frontend** — `VITE_API_BASE_URL` defaults to `http://localhost:8000/api` in `docker-compose.yml` (no root `.env` required).
+## Embeddings (MVP)
 
-FastAPI loads `backend/.env` by absolute path (`app/config.py`).
+Use local SentenceTransformer embeddings in current MVP:
 
-## OCR settings (hybrid provider)
+```env
+EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+```
 
-- `OCR_PROVIDER=hybrid` — uses PDF text layer first, then OCR for weak/empty pages.
-- `OCR_USE_VLM=true` — enables OpenRouter Vision OCR for scanned/low-quality pages.
-- `OPENROUTER_MODEL_OCR_VLM` — optional dedicated Vision model override.
-- `OCR_VLM_MAX_PAGES=20` — max pages for VLM OCR pass.
-- `OCR_VLM_DPI=160` — page rendering DPI for Vision OCR.
-- `OCR_VLM_TIMEOUT_SECONDS=120` — timeout for one VLM OCR request.
-- `OCR_MIN_TEXT_CHARS_PER_PAGE=50` — threshold to treat page text layer as too weak.
+`text-embedding-3-large` is a remote OpenAI-compatible embedding model and is not
+supported by `EMBEDDING_MODEL_NAME` unless a remote embeddings provider is implemented.
+
+## OCR tuning
+
+Recommended defaults for scanned PDFs:
+
+```env
+OCR_PROVIDER=hybrid
+OCR_USE_VLM=true
+OCR_DEBUG=false
+OCR_VLM_DPI=220
+OCR_MIN_TEXT_CHARS_PER_PAGE=50
+```
+
+## LegalResearch fallback mode
+
+Some BotHub Sonar-compatible models may return a normal JSON response body but omit
+machine-readable `search_results` / `citations`.
+
+If:
+
+```env
+LEGAL_RESEARCH_ALLOW_MODEL_REPORTED_SOURCES=true
+```
+
+backend may accept `legal_sources` from model JSON content only after strict validation:
+- JSON must be valid and contain `legal_sources`
+- only http/https URLs
+- only allowed domains (`consultant.ru`, `garant.ru`, `pravo.gov.ru`)
+- no placeholder/fake URLs (`https://...`, `example.com`, `localhost`, etc.)
+- snippet/title/url required
+- root-domain-only links (without concrete path) are rejected
+
+If validation passes, report includes a warning that sources require manual verification.
+Plain text links are not accepted.
+
+Recommended toggles:
+
+```env
+LEGAL_RESEARCH_ALLOW_MODEL_REPORTED_SOURCES=true
+LEGAL_RESEARCH_DEBUG=false
+```
+
+## OpenRouter (legacy fallback only)
+
+OpenRouter is not required for default MVP setup.
+Use it only when explicitly switching provider modes:
+
+```env
+LLM_PROVIDER=openrouter
+VISION_PROVIDER=openrouter
+LEGAL_RESEARCH_PROVIDER=openrouter_web_search
+OPENROUTER_API_KEY=...
+```
+
+## Direct Perplexity
+
+Direct Perplexity API mode is not used in current MVP architecture.
+Do not add `PERPLEXITY_API_KEY` for normal project setup.
 
 ## Security
 
-- Do not commit `backend/.env` or `frontend/.env`.
-- Do not put real keys in `*.env.example`.
+- Never commit `backend/.env`.
+- Never print real keys in logs.
+- If a key was exposed, rotate/revoke it.
 
-## OCR model routing notes
+## Runtime status and warnings
 
-- `OPENROUTER_MODEL_OCR_VLM` is the preferred VLM OCR model setting.
-- `OPENROUTER_OCR_MODEL` is a legacy alias used only when `OPENROUTER_MODEL_OCR_VLM` is empty.
-- `OCR_TESSERACT_LANG=rus+eng` is the default local OCR language setting.
+- `used_ocr=true` is expected metadata and does not mean request failure.
+- `INFO:` messages (for example successful VLM OCR usage) do not force `done_with_warnings`.
+- Non-`INFO:` warnings (for example local OCR fallback) can move report status to `done_with_warnings`.
 
-## DeepSeek fallback behavior
+## Provider error codes
 
-- `OPENROUTER_MODEL_FALLBACK` (for example `deepseek/deepseek-v4-flash:free`) is used only for text LLM fallback.
-- It is triggered only when a primary text model call fails.
-- It is not used for VLM OCR.
-- It is not used for LegalResearchAgent direct web-search calls.
-- Therefore DeepSeek may not appear in OpenRouter dashboard when primary models succeed.
+Public API error responses use canonical `provider_*` codes and may include legacy OpenRouter code in `legacy_code`:
+
+- `provider_missing_key`
+- `provider_rate_limited`
+- `provider_auth_failed`
+- `provider_model_not_found`
+- `provider_timeout`
+- `provider_unavailable`
+- `provider_bad_response`
+- `provider_unknown_error`
+
+## Restart after `.env` changes
+
+```powershell
+docker compose down
+docker compose up -d --build
+```
+
+## Docker runtime modes
+
+Demo/default start (no API auto-reload):
+
+```powershell
+docker compose up -d --build
+```
+
+Dev start with API reload:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+## Check env without printing secrets
+
+```powershell
+docker compose exec api python -c "import os; print('BOTHUB_API_KEY', 'present' if os.getenv('BOTHUB_API_KEY') else 'missing')"
+```

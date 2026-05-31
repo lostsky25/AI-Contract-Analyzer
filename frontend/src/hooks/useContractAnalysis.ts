@@ -36,31 +36,36 @@ function normalizeStatus(status: string | null | undefined): string {
 }
 
 function parseError(error: unknown): string {
+  const codeMessages: Record<string, string> = {
+    provider_rate_limited:
+      "Лимит AI-провайдера исчерпан. Попробуйте позже или смените модель.",
+    openrouter_rate_limited:
+      "Лимит AI-провайдера исчерпан. Попробуйте позже или смените модель.",
+    provider_auth_failed: "AI-провайдер отклонил ключ доступа. Проверьте настройки API key.",
+    openrouter_auth_failed: "AI-провайдер отклонил ключ доступа. Проверьте OPENROUTER_API_KEY.",
+    provider_model_not_found: "Выбранная AI-модель недоступна. Проверьте настройки модели.",
+    openrouter_model_not_found:
+      "Выбранная AI-модель недоступна в OpenRouter. Проверьте настройки модели.",
+    provider_missing_key: "AI-провайдер не настроен. Укажите API key в окружении backend.",
+    openrouter_missing_key: "AI-провайдер не настроен. Укажите OPENROUTER_API_KEY в backend.",
+    provider_unavailable: "AI-провайдер временно недоступен. Попробуйте позже.",
+    openrouter_unavailable: "AI-провайдер временно недоступен. Попробуйте позже.",
+    provider_bad_response: "AI-провайдер вернул неожиданный ответ. Попробуйте позже.",
+    openrouter_bad_response: "AI-провайдер вернул неожиданный ответ. Попробуйте позже."
+  };
+
   if (error instanceof ApiError) {
     if (error.status === 401 || error.status === 403) {
       return "Сессия истекла. Войдите снова.";
     }
-    if (error.code === "openrouter_timeout") {
+    if (error.code === "openrouter_timeout" || error.code === "provider_timeout") {
       return "AI-анализ занимает больше обычного. Попробуйте ещё раз или проверьте статус документа позже.";
     }
     if (error.kind === "timeout") {
       return "Запрос к серверу выполняется дольше обычного. Попробуйте ещё раз.";
     }
-    switch (error.code) {
-      case "openrouter_rate_limited":
-        return "Лимит AI-провайдера исчерпан. Бесплатная модель временно недоступна. Попробуйте позже или настройте другую модель.";
-      case "openrouter_auth_failed":
-        return "AI-провайдер отклонил ключ доступа. Проверьте OPENROUTER_API_KEY.";
-      case "openrouter_model_not_found":
-        return "Выбранная AI-модель недоступна в OpenRouter. Проверьте настройки модели.";
-      case "openrouter_missing_key":
-        return "AI-провайдер не настроен. Укажите OPENROUTER_API_KEY в окружении backend.";
-      case "openrouter_unavailable":
-        return "AI-провайдер временно недоступен. Попробуйте повторить анализ позже.";
-      case "openrouter_bad_response":
-        return "AI-провайдер вернул неожиданный ответ. Попробуйте повторить анализ позже.";
-      default:
-        break;
+    if (error.code && codeMessages[error.code]) {
+      return codeMessages[error.code];
     }
     if (error.status === 500) {
       return "На сервере произошла ошибка. Проверьте логи backend.";
@@ -74,18 +79,19 @@ function parseError(error: unknown): string {
 }
 
 function normalizeRisk(risk: LegacyAnalyzeResponse["risks"][number]): Risk {
+  const severity = risk.severity === "critical" ? "high" : risk.severity;
   return {
     title: risk.type,
-    severity: risk.severity,
+    severity,
     explanation: risk.description,
-    quote: risk.recommendation,
-    page: null
+    quote: risk.recommendation ?? "",
+    page: null,
+    chunk_id: null
   };
 }
 
 function resolveOverallRisk(risks: Risk[]): ContractReport["overall_risk"] {
   const severities = risks.map((risk) => risk.severity);
-  if (severities.includes("critical")) return "critical";
   if (severities.includes("high")) return "high";
   if (severities.includes("medium")) return "medium";
   if (severities.includes("low")) return "low";
@@ -96,7 +102,7 @@ function normalizeOrchestratorRisk(risk: Record<string, unknown>): Risk {
   const title = String(risk.title ?? risk.type ?? "Risk").trim() || "Risk";
   const explanation = String(risk.explanation ?? risk.description ?? "").trim();
   const severityRaw = String(risk.severity ?? "unknown").toLowerCase();
-  const severity = (["low", "medium", "high", "critical", "unknown"] as const).includes(
+  const severity = (["low", "medium", "high", "unknown"] as const).includes(
     severityRaw as Risk["severity"]
   )
     ? (severityRaw as Risk["severity"])
@@ -106,8 +112,9 @@ function normalizeOrchestratorRisk(risk: Record<string, unknown>): Risk {
     title,
     severity,
     explanation,
-    quote: String(risk.quote ?? risk.recommendation ?? "").trim() || undefined,
-    page: typeof risk.page === "number" ? risk.page : null
+    quote: String(risk.quote ?? risk.recommendation ?? "").trim(),
+    page: typeof risk.page === "number" ? risk.page : null,
+    chunk_id: typeof risk.chunk_id === "string" ? risk.chunk_id : null
   };
 }
 

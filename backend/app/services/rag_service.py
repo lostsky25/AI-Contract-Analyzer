@@ -1,12 +1,50 @@
+import logging
 from pathlib import Path
 from typing import Any
 
 from app.config import settings
 
 COLLECTION_NAME = "contract_chunks"
+REMOTE_EMBEDDING_PREFIXES = ("text-embedding-",)
+REMOTE_EMBEDDING_MODELS = {
+    "text-embedding-3-large",
+    "text-embedding-3-small",
+    "text-embedding-ada-002",
+}
 
 _embedding_model: Any | None = None
 _chroma_client: Any | None = None
+logger = logging.getLogger(__name__)
+
+
+def _short_doc(document_id: str | None) -> str:
+    value = str(document_id or "").strip()
+    if not value:
+        return "unknown"
+    return value[:8]
+
+
+def _validate_embedding_model_name(model_name: str) -> str:
+    normalized = str(model_name or "").strip()
+    lowered = normalized.lower()
+    if not normalized:
+        raise ValueError("EMBEDDING_MODEL_NAME is empty. Set a local SentenceTransformer model.")
+    if lowered in REMOTE_EMBEDDING_MODELS or lowered.startswith(REMOTE_EMBEDDING_PREFIXES):
+        raise ValueError(
+            f"{normalized} is a remote embedding model and cannot be used as local SentenceTransformer. "
+            "Use sentence-transformers/all-MiniLM-L6-v2 or implement BotHub embeddings provider."
+        )
+    return normalized
+
+
+def _dimension_mismatch_message(exc: Exception) -> str | None:
+    text = str(exc).lower()
+    if "dimension" in text and ("mismatch" in text or "expected" in text or "invalid" in text):
+        return (
+            "ChromaDB embedding dimension mismatch detected. "
+            "Rebuild Chroma index after changing EMBEDDING_MODEL_NAME."
+        )
+    return None
 
 
 def get_embedding_model() -> Any:
@@ -14,7 +52,8 @@ def get_embedding_model() -> Any:
     if _embedding_model is None:
         from sentence_transformers import SentenceTransformer
 
-        _embedding_model = SentenceTransformer(settings.embedding_model_name)
+        model_name = _validate_embedding_model_name(settings.embedding_model_name)
+        _embedding_model = SentenceTransformer(model_name)
     return _embedding_model
 
 
@@ -90,15 +129,48 @@ def save_chunk_records(document_id: str, records: list[dict]) -> int:
     if not texts:
         return 0
 
-    collection = get_collection()
-    embeddings = create_embeddings(texts)
-    collection.upsert(
-        ids=ids,
-        documents=texts,
-        metadatas=metadatas,
-        embeddings=embeddings,
+    logger.info(
+        "rag_index_start doc=%s collection=%s embedding_model_name=%s chunks_to_save=%d",
+        _short_doc(document_id),
+        COLLECTION_NAME,
+        settings.embedding_model_name,
+        len(texts),
     )
-    return len(ids)
+    try:
+        collection = get_collection()
+        embeddings = create_embeddings(texts)
+        vector_dim = len(embeddings[0]) if embeddings else 0
+        collection.upsert(
+            ids=ids,
+            documents=texts,
+            metadatas=metadatas,
+            embeddings=embeddings,
+        )
+        logger.info(
+            "rag_index_success doc=%s collection=%s embedding_vector_dim=%d chunks_saved=%d",
+            _short_doc(document_id),
+            COLLECTION_NAME,
+            vector_dim,
+            len(ids),
+        )
+        return len(ids)
+    except ValueError:
+        raise
+    except Exception as exc:
+        mismatch_message = _dimension_mismatch_message(exc)
+        if mismatch_message:
+            logger.exception(
+                "rag_index_failed doc=%s collection=%s reason=dimension_mismatch",
+                _short_doc(document_id),
+                COLLECTION_NAME,
+            )
+            raise ValueError(mismatch_message) from exc
+        logger.exception(
+            "rag_index_failed doc=%s collection=%s reason=unexpected_error",
+            _short_doc(document_id),
+            COLLECTION_NAME,
+        )
+        raise
 
 
 def save_chunks(document_id: str, chunks: list[str]) -> int:
@@ -153,23 +225,56 @@ def batch_semantic_retrieval(
     if not normalized:
         return [[] for _ in queries]
 
+    logger.info(
+        "rag_retrieval_start doc=%s collection=%s embedding_model_name=%s retrieval_query_count=%d top_k=%d document_filter_used=%s",
+        _short_doc(document_id),
+        COLLECTION_NAME,
+        settings.embedding_model_name,
+        len(normalized),
+        int(top_k),
+        str(bool(document_id)).lower(),
+    )
     collection = get_collection()
     query_embeddings = create_embeddings(normalized)
     where = {"document_id": document_id} if document_id else None
 
     outputs: list[list[dict]] = []
-    for embedding in query_embeddings:
-        result = collection.query(
-            query_embeddings=[embedding],
-            n_results=top_k,
-            where=where,
+    try:
+        for embedding in query_embeddings:
+            result = collection.query(
+                query_embeddings=[embedding],
+                n_results=top_k,
+                where=where,
+            )
+            documents = result.get("documents", [[]])[0]
+            metadatas = result.get("metadatas", [[]])[0]
+            distances = result.get("distances", [[]])[0]
+            ids = result.get("ids", [[]])[0]
+            outputs.append(_parse_retrieval_rows(ids, documents, metadatas, distances))
+    except Exception as exc:
+        mismatch_message = _dimension_mismatch_message(exc)
+        if mismatch_message:
+            logger.exception(
+                "rag_retrieval_failed doc=%s collection=%s reason=dimension_mismatch",
+                _short_doc(document_id),
+                COLLECTION_NAME,
+            )
+            raise ValueError(mismatch_message) from exc
+        logger.exception(
+            "rag_retrieval_failed doc=%s collection=%s reason=unexpected_error",
+            _short_doc(document_id),
+            COLLECTION_NAME,
         )
-        documents = result.get("documents", [[]])[0]
-        metadatas = result.get("metadatas", [[]])[0]
-        distances = result.get("distances", [[]])[0]
-        ids = result.get("ids", [[]])[0]
-        outputs.append(_parse_retrieval_rows(ids, documents, metadatas, distances))
+        raise
 
     if len(outputs) < len(queries):
         outputs.extend([[]] * (len(queries) - len(outputs)))
+    retrieved_chunks_count = sum(len(items) for items in outputs)
+    logger.info(
+        "rag_retrieval_done doc=%s collection=%s retrieved_chunks_count=%d retrieval_empty_reason=%s",
+        _short_doc(document_id),
+        COLLECTION_NAME,
+        retrieved_chunks_count,
+        "none" if retrieved_chunks_count else "no_matches_for_document_filter_or_index_unavailable",
+    )
     return outputs

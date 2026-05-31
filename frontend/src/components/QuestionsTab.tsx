@@ -1,5 +1,5 @@
 ﻿import type { DocumentQuestionResponse } from "../types/api";
-import { formatRelevanceLabel } from "../utils/labels";
+import { formatConfidenceLabel } from "../utils/labels";
 
 type QuestionsTabProps = {
   questionInput: string;
@@ -11,7 +11,7 @@ type QuestionsTabProps = {
 
 function confidenceLabel(value: string): string {
   if (value === "low" || value === "medium" || value === "high") {
-    return formatRelevanceLabel(value);
+    return formatConfidenceLabel(value);
   }
   return "Неизвестно";
 }

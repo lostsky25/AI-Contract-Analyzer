@@ -1,5 +1,23 @@
 from app.agents.report_agent import ReportAgent
 
+MOJIBAKE_MARKERS = [
+    "РџС",
+    "Р В°",
+    "Р Вµ",
+    "Р Р…",
+    "Р С‘",
+    "РЎРѓ",
+    "РЎвЂљ",
+    "Гђ",
+    "Г‘",
+    "пїЅ",
+]
+
+
+def _assert_no_mojibake(value: str) -> None:
+    lowered = str(value or "").lower()
+    assert not any(marker.lower() in lowered for marker in MOJIBAKE_MARKERS), value
+
 
 def test_report_agent_fills_missing_quote_and_page() -> None:
     agent = ReportAgent()
@@ -220,3 +238,94 @@ def test_report_agent_keeps_russian_disclaimer() -> None:
         report["disclaimer"]
         == "Система выполняет предварительный анализ и не заменяет профессионального юриста."
     )
+
+
+def test_report_agent_model_reported_warning_is_human_readable_ru() -> None:
+    agent = ReportAgent()
+    report = agent.run(
+        {
+            "document_id": "doc-lang-5",
+            "status": "done",
+            "summary": "Краткое резюме.",
+            "overall_risk": "unknown",
+            "risks": [],
+            "key_terms": [],
+            "legal_sources": [],
+            "warnings": ["Sources were taken from the model-structured response and require manual verification."],
+        }
+    )
+    assert (
+        "Некоторые правовые источники получены из структурированного ответа модели и требуют ручной проверки."
+        in report["warnings"]
+    )
+
+
+def test_report_agent_provider_bad_response_warning_is_human_readable_ru() -> None:
+    agent = ReportAgent()
+    report = agent.run(
+        {
+            "document_id": "doc-lang-6",
+            "status": "done",
+            "summary": "Краткое резюме.",
+            "overall_risk": "unknown",
+            "risks": [],
+            "key_terms": [],
+            "legal_sources": [],
+            "warnings": ["provider_bad_response"],
+        }
+    )
+    assert (
+        "AI-провайдер вернул ответ в неожиданном формате. Попробуйте повторить анализ или выбрать другую модель."
+        in report["warnings"]
+    )
+
+
+def test_report_agent_user_facing_strings_are_valid_utf8_russian() -> None:
+    agent = ReportAgent()
+    report = agent.run(
+        {
+            "document_id": "doc-lang-7",
+            "status": "done",
+            "summary": "Краткое резюме.",
+            "overall_risk": "unknown",
+            "risks": [{"severity": "high", "quote": "Цитата"}],
+            "key_terms": [{}],
+            "legal_sources": [
+                {
+                    "title": "consultant_plus",
+                    "url": "https://www.consultant.ru/document/cons_doc_LAW_5142/",
+                    "snippet": "garant",
+                    "source_type": "other_public_source",
+                    "relevance": "high",
+                }
+            ],
+            "warnings": [
+                "provider_bad_response",
+                "Sources were taken from the model-structured response and require manual verification.",
+                "Local OCR fallback was used. OCR quality may be lower.",
+                "INFO: this should be ignored by orchestrator before report",
+            ],
+        }
+    )
+
+    user_facing_texts: list[str] = []
+    user_facing_texts.append(report.get("summary", ""))
+    user_facing_texts.append(report.get("disclaimer", ""))
+    user_facing_texts.extend(report.get("warnings", []))
+    for risk in report.get("risks", []):
+        user_facing_texts.append(str(risk.get("title", "")))
+        user_facing_texts.append(str(risk.get("explanation", "")))
+        user_facing_texts.append(str(risk.get("quote", "")))
+    for term in report.get("key_terms", []):
+        user_facing_texts.append(str(term.get("title", "")))
+        user_facing_texts.append(str(term.get("value", "")))
+        user_facing_texts.append(str(term.get("explanation", "")))
+        user_facing_texts.append(str(term.get("quote", "")))
+    for source in report.get("legal_sources", []):
+        user_facing_texts.append(str(source.get("title", "")))
+        user_facing_texts.append(str(source.get("snippet", "")))
+        user_facing_texts.append(str(source.get("reason", "")))
+
+    assert user_facing_texts
+    for text in user_facing_texts:
+        _assert_no_mojibake(text)

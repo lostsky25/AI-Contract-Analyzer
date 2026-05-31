@@ -1,75 +1,123 @@
 # Agent Workflow
 
-## Agents and responsibilities
+## Pipeline
 
-1. **OrchestratorAgent** (no LLM)  
-   Coordinates the pipeline, updates document status, and assembles outputs.
+1. `upload` endpoint stores file metadata (`status=uploaded`).
+2. `process` extracts contract text, builds chunk records, and returns OCR metadata.
+3. `orchestrate` runs contract-first analysis and report assembly.
+4. `documents/{id}/report` returns the latest normalized report payload.
+5. `documents/{id}/ask` answers only from contract chunks (no web search).
 
-2. **DocumentProcessingAgent** (no LLM)  
-   Tools: `PyMuPDF`, `python-docx`, `Tesseract` (OCR fallback).  
-   Output: `pages[]`, `chunk_records[]` (with `page`), `full_text`.
+## Contract-first rule
 
-3. **RetrievalAgent** (no LLM)  
-   Tools: embeddings + `ChromaDB`.  
-   Indexes `chunk_records` with metadata: `document_id`, `chunk_id`, `page`.  
-   Returns retrieval hits: `text`, `page`, `chunk_id`, `score`.  
-   Model for embeddings: `nvidia/llama-nemotron-embed-vl-1b-v2:free` (config field `EMBEDDING_MODEL`; runtime can fallback to local sentence-transformers if needed).
+- `risks` and `key_terms` are derived only from contract evidence.
+- Legal web sources are collected only after validated contract signals exist.
+- `legal_sources` are returned in a separate array and are never embedded into `risks` or `key_terms`.
+- `legal_sources` are external references only and are never treated as contract evidence.
 
-4. **LegalRiskAgent** (LLM step, `AnalysisAgent.analyze_risks`)  
-   Model: `OPENROUTER_MODEL_RISK` (`nvidia/nemotron-3-super-120b-a12b:free`)  
-   Fallback: `OPENROUTER_MODEL_FALLBACK`.  
-   Input: evidence pack from retrieval (`risk_context`).  
-   Output: risks with `quote` and `page` (filled from evidence when LLM omits them).
+## Grounding rule
 
-5. **KeyTermsAgent** (LLM step, `AnalysisAgent.extract_key_terms`)  
-   Model: `OPENROUTER_MODEL_KEY_TERMS` (`google/gemma-4-31b-it:free`)  
-   Fallback: `OPENROUTER_MODEL_FALLBACK`.  
-   Input: `terms_context` evidence pack.  
-   Output: key terms with `quote` and `page`.
+- Published `risk` requires `quote`; `page` and `chunk_id` are included when available.
+- Published `key_term` requires `quote`; `page` and `chunk_id` are included when available.
+- Ungrounded items are rejected and converted into warning-level events instead of crashing the pipeline.
 
-6. **LegalResearchAgent** (mandatory LLM + web search step)  
-   Model: `OPENROUTER_MODEL_LEGAL_RESEARCH` (`openrouter/owl-alpha`)  
-   Provider: `LEGAL_SEARCH_PROVIDER=openrouter_web_search`  
-   Tool: `openrouter:web_search` with `allowed_domains` = `consultant.ru`, `garant.ru`, `pravo.gov.ru`  
-   Input: `document_id`, `risks`, `key_terms`, `summary`  
-   Output: `legal_sources[]`, `limitations`, `warnings`  
-   If web search is unavailable: returns `legal_sources=[]`, report status may become `done_with_warnings`.
+## Status policy
 
-7. **ReportAgent** (no LLM)  
-   Normalizes and validates report fields against `docs/report-schema.json`.  
-   Safe fallback: missing `quote` в†ђ `explanation`/`value`; `page` may stay `null`.
+Canonical statuses used by API/docs:
 
-### Page-aware pipeline notes
+- `uploaded`
+- `processing`
+- `processed`
+- `analyzing`
+- `done`
+- `done_with_warnings`
+- `failed`
+- `failed_processing`
 
-- **PDF:** one entry per PDF page; chunks inherit that page.
-- **DOCX:** entire document as `page: 1` only вЂ” no real pagination in MVP (see `docs/api-contract.md`).
-- **OCR:** PDF via `run_ocr_pages` is page-aware; scanned images use `page: 1`.
+Legacy compatibility statuses that can still appear in old flows:
 
-8. **DocumentQAAgent** (LLM step, RAG-only)  
-   Model: `OPENROUTER_MODEL_QA` (`nvidia/nemotron-3-super-120b-a12b:free`)  
-   Fallback: `OPENROUTER_MODEL_FALLBACK` (`deepseek/deepseek-v4-flash:free`)  
-   Retrieval: `semantic_retrieval(document_id, question)` вЂ” top-k chunks from ChromaDB  
-   **No web search** вЂ” answers only from uploaded contract text.
+- `analyzed`
+- `indexed`
+- `extracted`
+- `ocr_completed`
+- `empty_text`
 
-## Workflow
+Report-level interpretation:
 
-`Frontend upload -> Upload API -> OrchestratorAgent -> DocumentProcessingAgent -> RetrievalAgent -> LegalRiskAgent + KeyTermsAgent + LegalResearchAgent -> ReportAgent -> Frontend Report -> DocumentQAAgent for ask flow`
+- `done`: report assembled, no warning-level issues.
+- `done_with_warnings`: report assembled, warning-level issues exist.
+- `failed`: no usable report assembled.
 
-## LegalResearchAgent limitations (mandatory)
+## Warnings policy
 
-- Public web pages only (via OpenRouter `openrouter:web_search`).
-- No authentication attempts on legal platforms.
-- No paywall bypass.
-- No claims about full access to closed legal databases (including Consultant Plus / Garant commercial sections).
-- Search results are preliminary references, not verified legal advice.
-- For production, use a legal provider/API with proper licensing instead of relying only on public page snippets.
-- If results are unavailable, returns empty `legal_sources` with `limitations` and does not break full analysis (`done_with_warnings`).
+- Events are stored as `warnings: string[]`.
+- `INFO:` prefix marks informational events.
+- `INFO:` messages do not promote report status to `done_with_warnings`.
+- Non-`INFO:` warnings promote status to `done_with_warnings`.
 
-## Guardrails summary
+LegalResearch warning integration:
 
-- User question is normalized and validated before Q&A (`normalize_user_question`).
-- Prompt injection attempts in user input are refused with a safe response payload (HTTP 200).
-- Off-topic questions are refused with a safe response payload (HTTP 200).
-- DocumentQA answers are accepted only when citations are grounded in retrieved evidence.
-- Contract and derived context are explicitly marked as untrusted data in AnalysisAgent and LegalResearchAgent prompts.
+- `grounded` legal sources do not create warning by trust tier itself.
+- `model_reported` legal sources always add a warning that manual verification is required.
+- no metadata + no valid strict JSON produces warning and empty `legal_sources`.
+- plain text links without valid JSON are rejected and produce warning.
 
+Common warning-level examples:
+
+- Tesseract OCR fallback used.
+- Legal web search unavailable/failed.
+- Some or all risks/key_terms rejected by grounding validator.
+- Simplified fallback report assembly path used.
+
+## Provider error policy
+
+Canonical public error codes:
+
+- `provider_missing_key`
+- `provider_rate_limited`
+- `provider_auth_failed`
+- `provider_model_not_found`
+- `provider_timeout`
+- `provider_unavailable`
+- `provider_bad_response`
+- `provider_unknown_error`
+
+Legacy compatibility:
+
+- OpenRouter legacy codes (`openrouter_*`) are preserved in `legacy_code` when applicable.
+
+Public error payload shape:
+
+```json
+{
+  "detail": "string",
+  "code": "provider_*",
+  "provider": "bothub|openrouter",
+  "retryable": true,
+  "legacy_code": "openrouter_* | null"
+}
+```
+
+## OCR metadata policy
+
+- `used_ocr=true` is technical metadata and not an error by itself.
+- Successful VLM OCR is represented as an `INFO:` event.
+- Tesseract fallback is warning-level and can lead to `done_with_warnings`.
+- `chunks_count` is backend metadata for retrieval/debug and may be hidden in UI.
+
+## LegalResearch trust tiers
+
+- `trust_tier=grounded`: source came from machine-readable metadata (`search_results`, `citations`, `annotations`, `results`, `sources`).
+- `trust_tier=model_reported`: source came from strict model JSON fallback, passed domain/URL validation, and requires manual check.
+
+Parser priority:
+
+1. metadata extraction first;
+2. strict JSON fallback only when metadata is absent and fallback flag is enabled;
+3. plain text URLs are never accepted as legal sources.
+
+## Legal and safety notes
+
+- Public web pages only for legal research.
+- No paywall/auth bypass.
+- Output is preliminary contract analysis, not legal advice.

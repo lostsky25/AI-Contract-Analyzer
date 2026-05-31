@@ -1036,7 +1036,7 @@ p {
   color: #21a163;
 }
 
-.summary-metric-icon.metric-quotes {
+.summary-metric-icon.metric-evidence {
   background: #edf3ff;
   color: #3466e6;
 }
@@ -1070,6 +1070,47 @@ p {
 .report-tabs {
   display: grid;
   gap: 9px;
+}
+
+.report-warnings-panel {
+  border: 1px solid #ffd69f;
+  background: #fff8ee;
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.report-warnings-title {
+  font-weight: 800;
+  color: #8d590e;
+}
+
+.report-warnings-list,
+.report-notice-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  color: #4e5f79;
+}
+
+.report-warnings-toggle {
+  justify-self: start;
+}
+
+.report-notice-panel {
+  border: 1px solid #d8e5ff;
+  background: #f6f9ff;
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.report-notice-title {
+  font-weight: 700;
+  color: #3c5680;
 }
 
 .report-tab-list {
@@ -1163,6 +1204,11 @@ p {
 .quotes-list {
   display: grid;
   gap: 12px;
+}
+
+.legal-sources-wrap {
+  display: grid;
+  gap: 10px;
 }
 
 .risk-card,
@@ -1274,6 +1320,12 @@ p {
   margin-top: 6px;
   line-height: 1.55;
   color: #304b72;
+}
+
+.term-explanation {
+  margin-top: 8px;
+  color: #304b72;
+  line-height: 1.5;
 }
 
 .risk-evidence {
@@ -1398,6 +1450,34 @@ p {
   flex-wrap: wrap;
 }
 
+.trust-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 4px 9px;
+}
+
+.trust-good {
+  background: #e9f8ef;
+  border-color: #caebda;
+  color: #1d8d58;
+}
+
+.trust-warn {
+  background: #fff4e7;
+  border-color: #ffd8a7;
+  color: #a16210;
+}
+
+.trust-neutral {
+  background: #eff3fb;
+  border-color: #d7e0f1;
+  color: #5e708c;
+}
+
 .source-chip {
   display: inline-flex;
   align-items: center;
@@ -1414,6 +1494,52 @@ p {
   margin-top: 8px;
   line-height: 1.5;
   color: #35557f;
+}
+
+.legal-source-reason {
+  margin-top: 6px;
+  color: #60718b;
+  font-size: 0.9rem;
+}
+
+.legal-empty-card {
+  border: 1px dashed #d2e1ff;
+  border-radius: 16px;
+  padding: 14px;
+  background: #f8fbff;
+  display: grid;
+  gap: 8px;
+}
+
+.legal-empty-warning {
+  color: #8d590e;
+  font-weight: 700;
+}
+
+.legal-notice-block {
+  border: 1px solid #d8e5ff;
+  background: #f6f9ff;
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 7px;
+}
+
+.legal-notice-title {
+  font-weight: 700;
+  color: #3c5680;
+}
+
+.legal-notice-text {
+  color: #4a6189;
+}
+
+.legal-notice-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  color: #4e5f79;
 }
 
 .source-link {

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 from typing import Any
@@ -7,19 +7,21 @@ MAX_QUESTION_LENGTH = 1200
 
 OFFTOPIC_REFUSAL = (
     "Я могу отвечать только на вопросы по загруженному договору. "
-    "Задайте вопрос о тексте, условиях, рисках, сроках, сторонах, "
-    "обязанностях или других положениях документа."
+    "Задайте вопрос о рисках, условиях, оплате, ответственности, сроках или расторжении."
 )
 INJECTION_REFUSAL = (
-    "Я не могу выполнять инструкции, которые не относятся к анализу "
-    "загруженного договора. Могу ответить только на вопросы по "
-    "содержанию документа."
+    "Я не могу выполнять инструкции, которые не относятся к анализу загруженного договора. "
+    "Могу ответить только на вопросы по содержанию документа."
 )
-UNGROUNDED_ANSWER = "В загруженном документе не найдено достаточно подтверждённой информации для ответа."
+UNGROUNDED_ANSWER = "В загруженном документе не найдено достаточно подтвержденной информации для ответа."
 
 _CONTRACT_KEYWORDS = (
+    "документ",
     "договор",
     "контракт",
+    "оферт",
+    "приложен",
+    "тариф",
     "соглашен",
     "сторон",
     "исполнител",
@@ -41,9 +43,11 @@ _CONTRACT_KEYWORDS = (
     "страниц",
     "пункт",
     "раздел",
-    "в документ",
+    "в документе",
     "в тексте",
     "в договоре",
+    "юрист",
+    "согласов",
 )
 
 _SHORT_ALLOWED_QUESTIONS = (
@@ -54,6 +58,8 @@ _SHORT_ALLOWED_QUESTIONS = (
     "какая оплата",
     "какие обязанности",
     "какая ответственность",
+    "какие пункты требуют согласования с юристом",
+    "что самое рискованное",
 )
 
 _OFFTOPIC_HINTS = (
@@ -71,8 +77,19 @@ _OFFTOPIC_HINTS = (
     "истори",
     "математ",
     "реши задач",
-    "что такое python",
+    "что такое gpt",
     "переведи текст",
+    "сделай сайт",
+)
+
+_GENERATION_VERBS = (
+    "напиши",
+    "создай",
+    "сделай",
+    "покажи",
+    "расскажи",
+    "write",
+    "build",
 )
 
 _PROMPT_INJECTION_PATTERNS = (
@@ -86,6 +103,8 @@ _PROMPT_INJECTION_PATTERNS = (
     r"\bforget\s+(all\s+)?(previous|earlier)\s+instructions?\b",
     r"забуд[ьт]\s+инструкц",
     r"игнорируй(\s+\w+){0,3}\s+инструкц",
+    r"игнорируй(\s+\w+){0,3}\s+правил",
+    r"ответ(ь|ьте)?\s+на\s+любой\s+вопрос",
     r"выведи\s+системн(ый|ого)\s+промпт",
     r"следуй\s+только\s+моим\s+инструкц",
     r"не\s+используй\s+договор",
@@ -94,11 +113,8 @@ _PROMPT_INJECTION_PATTERNS = (
 )
 
 _HARMFUL_REQUEST_PATTERNS = (
-    r"(напиши|создай|покажи|расскажи)\s+код",
-    r"(напиши|создай|покажи|расскажи)\s+(sql[\s\-]?injection|sql[\s\-]?инъекц)",
     r"(как|how)\s+взлома",
     r"(как|how)\s+(сделать|выполнить)\s+(sql[\s\-]?injection|sql[\s\-]?инъекц)",
-    r"(bubble\s+sort|сортировк[аи]\s+пузырьк)",
 )
 
 _NO_INFO_MARKERS = (
@@ -117,6 +133,12 @@ def normalize_user_question(question: str) -> str:
     return collapsed[:MAX_QUESTION_LENGTH]
 
 
+def _looks_like_explicit_offtopic_generation(normalized: str) -> bool:
+    has_verb = any(verb in normalized for verb in _GENERATION_VERBS)
+    has_offtopic = any(hint in normalized for hint in _OFFTOPIC_HINTS)
+    return has_verb and has_offtopic
+
+
 def detect_prompt_injection(text: str) -> bool:
     normalized = normalize_user_question(text).lower()
 
@@ -124,33 +146,36 @@ def detect_prompt_injection(text: str) -> bool:
         if re.search(pattern, normalized):
             return True
 
-    # Block explicit harmful/off-scope execution requests, but allow contract-scoped phrasing.
-    mentions_contract = any(keyword in normalized for keyword in _CONTRACT_KEYWORDS)
-    if not mentions_contract:
-        for pattern in _HARMFUL_REQUEST_PATTERNS:
-            if re.search(pattern, normalized):
-                return True
+    for pattern in _HARMFUL_REQUEST_PATTERNS:
+        if re.search(pattern, normalized):
+            return True
+
     return False
 
 
 def is_contract_question(question: str) -> bool:
     normalized = normalize_user_question(question).lower()
 
+    if _looks_like_explicit_offtopic_generation(normalized):
+        return False
+
     if any(short_hint in normalized for short_hint in _SHORT_ALLOWED_QUESTIONS):
+        return True
+
+    # Relaxed document-anchor detection for Q&A usability:
+    # accept if the user clearly references the uploaded document context.
+    if "документ" in normalized and any(h in normalized for h in ("тариф", "оферт", "приложен", "услов")):
         return True
 
     mentions_contract = any(keyword in normalized for keyword in _CONTRACT_KEYWORDS)
     off_topic = any(hint in normalized for hint in _OFFTOPIC_HINTS)
 
-    # If contract scope is explicit, allow even with technical words
-    # (e.g. "что в договоре сказано про sql-инъекции?").
     if mentions_contract:
         return True
 
     if off_topic:
         return False
 
-    # Conservative default: unknown broad questions are treated as out-of-scope.
     return False
 
 

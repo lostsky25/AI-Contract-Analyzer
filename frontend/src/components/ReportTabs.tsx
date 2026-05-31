@@ -1,14 +1,14 @@
 ﻿import { useMemo, useState } from "react";
 
 import type { ContractReport, DocumentQuestionResponse } from "../types/api";
-import { EvidenceQuote } from "./EvidenceQuote";
+import { formatWarningLabel, isInfoWarning } from "../utils/labels";
 import { KeyTermsList } from "./KeyTermsList";
 import { LegalSourcesPanel } from "./LegalSourcesPanel";
 import { OverallRiskBadge } from "./OverallRiskBadge";
 import { QuestionsTab } from "./QuestionsTab";
 import { RiskCard } from "./RiskCard";
 
-type TabId = "overview" | "risks" | "terms" | "quotes" | "sources" | "questions";
+type TabId = "overview" | "risks" | "terms" | "sources" | "questions";
 
 type ReportTabsProps = {
   report: ContractReport;
@@ -19,19 +19,40 @@ type ReportTabsProps = {
   onAskQuestion: () => void;
 };
 
-type QuoteRow = {
-  source: "risk" | "key_term";
-  sourceLabel: string;
-  title: string;
-  quote: string;
-  page: number | null;
-};
-
 type ReportTab = {
   id: TabId;
   label: string;
   count?: number;
 };
+
+const MAX_VISIBLE_WARNINGS = 3;
+
+function isLegalWarning(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return ["legal", "source", "источник", "домен", "url", "web", "правов", "manual", "ссылк"].some((token) =>
+    normalized.includes(token)
+  );
+}
+
+function isSeriousGlobalWarning(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return [
+    "недостаточно извлеч",
+    "недостаточно текста",
+    "не удалось распознать",
+    "резервный ocr",
+    "упрощенном режиме",
+    "часть данных отчета потребовала нормализации",
+    "ошибка доступа к ai-провайдеру",
+    "внешний ai-провайдер недоступен",
+    "ai-провайдер не настроен",
+    "лимит ai-провайдера",
+    "выбранная ai-модель недоступна",
+    "не ответил вовремя",
+    "unexpected",
+    "provider"
+  ].some((token) => normalized.includes(token));
+}
 
 export function ReportTabs({
   report,
@@ -42,58 +63,102 @@ export function ReportTabs({
   onAskQuestion
 }: ReportTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
-
-  const quoteRows = useMemo<QuoteRow[]>(() => {
-    const riskQuotes: QuoteRow[] = report.risks.map((risk) => ({
-      source: "risk",
-      sourceLabel: "Риск",
-      title: risk.title,
-      quote: risk.quote ?? "",
-      page: risk.page ?? null
-    }));
-    const termQuotes: QuoteRow[] = report.key_terms.map((term) => ({
-      source: "key_term",
-      sourceLabel: "Ключевое условие",
-      title: term.title,
-      quote: term.quote ?? "",
-      page: term.page ?? null
-    }));
-
-    const merged = [...riskQuotes, ...termQuotes].filter((item) => item.quote.trim());
-    const seen = new Set<string>();
-
-    return merged.filter((item) => {
-      const key = `${item.quote.trim().toLowerCase()}::${item.page ?? "none"}`;
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
-  }, [report.key_terms, report.risks]);
-
-  const groupedQuotes = useMemo(
-    () => ({
-      risk: quoteRows.filter((row) => row.source === "risk"),
-      keyTerm: quoteRows.filter((row) => row.source === "key_term")
-    }),
-    [quoteRows]
-  );
+  const [showAllWarnings, setShowAllWarnings] = useState(false);
 
   const tabs = useMemo<ReportTab[]>(
     () => [
       { id: "overview" as const, label: "Обзор" },
       { id: "risks" as const, label: "Риски", count: report.risks.length },
       { id: "terms" as const, label: "Ключевые условия", count: report.key_terms.length },
-      { id: "quotes" as const, label: "Цитаты", count: quoteRows.length },
       { id: "sources" as const, label: "Правовые источники", count: report.legal_sources.length },
       { id: "questions" as const, label: "Вопросы" }
     ],
-    [quoteRows.length, report.key_terms.length, report.legal_sources.length, report.risks.length]
+    [report.key_terms.length, report.legal_sources.length, report.risks.length]
   );
+
+  const warningMessages = useMemo(() => {
+    const seen = new Set<string>();
+    return (report.warnings ?? [])
+      .filter((warning) => !isInfoWarning(warning))
+      .map(formatWarningLabel)
+      .filter((warning) => {
+        if (!warning || seen.has(warning)) {
+          return false;
+        }
+        seen.add(warning);
+        return true;
+      });
+  }, [report.warnings]);
+
+  const infoMessages = useMemo(() => {
+    const seen = new Set<string>();
+    return (report.warnings ?? [])
+      .filter((warning) => isInfoWarning(warning))
+      .map(formatWarningLabel)
+      .filter((warning) => {
+        if (!warning || seen.has(warning)) {
+          return false;
+        }
+        seen.add(warning);
+        return true;
+      });
+  }, [report.warnings]);
+
+  const legalWarnings = useMemo(
+    () => warningMessages.filter((warning) => isLegalWarning(warning)),
+    [warningMessages]
+  );
+
+  const seriousGlobalWarnings = useMemo(
+    () => warningMessages.filter((warning) => !isLegalWarning(warning) && isSeriousGlobalWarning(warning)),
+    [warningMessages]
+  );
+
+  const softGlobalNotices = useMemo(
+    () => warningMessages.filter((warning) => !isLegalWarning(warning) && !isSeriousGlobalWarning(warning)),
+    [warningMessages]
+  );
+
+  const visibleSeriousWarnings = showAllWarnings
+    ? seriousGlobalWarnings
+    : seriousGlobalWarnings.slice(0, MAX_VISIBLE_WARNINGS);
 
   return (
     <section className="report-tabs">
+      {seriousGlobalWarnings.length ? (
+        <section className="report-warnings-panel" aria-live="polite">
+          <p className="report-warnings-title">Анализ выполнен с предупреждениями</p>
+          <ul className="report-warnings-list">
+            {visibleSeriousWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+          {seriousGlobalWarnings.length > MAX_VISIBLE_WARNINGS ? (
+            <button
+              type="button"
+              className="button text report-warnings-toggle"
+              onClick={() => setShowAllWarnings((current) => !current)}
+            >
+              {showAllWarnings ? "Свернуть" : "Показать ещё"}
+            </button>
+          ) : null}
+        </section>
+      ) : null}
+
+      {!seriousGlobalWarnings.length && (softGlobalNotices.length || infoMessages.length) ? (
+        <section className="report-notice-panel" aria-live="polite">
+          <p className="report-notice-title">Примечания анализа</p>
+          <ul className="report-notice-list">
+            {softGlobalNotices.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+            {infoMessages.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <div className="report-tab-list">
         {tabs.map((tab) => (
           <button
@@ -146,47 +211,9 @@ export function ReportTabs({
 
         {activeTab === "terms" ? <KeyTermsList terms={report.key_terms} /> : null}
 
-        {activeTab === "quotes" ? (
-          <div className="quotes-list">
-            {quoteRows.length ? (
-              <>
-                {groupedQuotes.risk.length ? (
-                  <section className="quotes-group">
-                    <h4 className="quotes-group-title">Риск</h4>
-                    {groupedQuotes.risk.map((item, index) => (
-                      <article className="quote-card" key={`risk-${item.title}-${index}`}>
-                        <div className="quote-header">
-                          <p className="quote-title">{item.title}</p>
-                          <span className={`quote-source quote-source-${item.source}`}>{item.sourceLabel}</span>
-                        </div>
-                        <EvidenceQuote quote={item.quote} page={item.page} sourceLabel="Цитата" />
-                      </article>
-                    ))}
-                  </section>
-                ) : null}
-
-                {groupedQuotes.keyTerm.length ? (
-                  <section className="quotes-group">
-                    <h4 className="quotes-group-title">Ключевое условие</h4>
-                    {groupedQuotes.keyTerm.map((item, index) => (
-                      <article className="quote-card" key={`term-${item.title}-${index}`}>
-                        <div className="quote-header">
-                          <p className="quote-title">{item.title}</p>
-                          <span className={`quote-source quote-source-${item.source}`}>{item.sourceLabel}</span>
-                        </div>
-                        <EvidenceQuote quote={item.quote} page={item.page} sourceLabel="Цитата" />
-                      </article>
-                    ))}
-                  </section>
-                ) : null}
-              </>
-            ) : (
-              <p className="muted">Цитаты не найдены.</p>
-            )}
-          </div>
+        {activeTab === "sources" ? (
+          <LegalSourcesPanel legalSources={report.legal_sources} legalWarnings={legalWarnings} />
         ) : null}
-
-        {activeTab === "sources" ? <LegalSourcesPanel legalSources={report.legal_sources} /> : null}
 
         {activeTab === "questions" ? (
           <QuestionsTab

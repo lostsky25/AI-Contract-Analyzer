@@ -1,169 +1,166 @@
-# API Contract (Agent-based MVP)
+# API Contract
 
-## Existing endpoints (already implemented in backend)
+Актуальный контракт для backend API (`/api/*`). Документ отражает текущие маршруты и публичные схемы без внутренних служебных полей.
+
+## Базовые эндпоинты
 
 - `GET /api/health`
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/auth/me`
-- `POST /api/upload`
+
+## Документы и анализ
+
+- `POST /api/upload` — загрузка файла (legacy upload endpoint).
+- `POST /api/documents` — загрузка файла (основной endpoint).
+- `GET /api/documents` — список документов пользователя.
+- `GET /api/documents/{document_id}` — карточка документа.
+- `GET /api/documents/{document_id}/status` — статус обработки/анализа.
+- `POST /api/process` — извлечение текста + OCR при необходимости + индексация chunks.
+- `POST /api/orchestrate` — полный агентный пайплайн по `document_id`.
+- `POST /api/documents/{document_id}/analyze` — обертка полного пайплайна по документу.
+- `GET /api/documents/{document_id}/report` — итоговый отчет.
+- `GET /api/documents/{document_id}/legal-sources` — правовые источники и предупреждения.
+- `POST /api/documents/{document_id}/ask` — Q&A только по загруженному договору.
+
+## Технические/служебные MVP-эндпоинты
+
 - `POST /api/extract`
-- `POST /api/process`
 - `POST /api/chunk`
 - `POST /api/index`
 - `POST /api/retrieve`
 - `POST /api/analyze`
-- `POST /api/orchestrate`
 - `POST /api/ocr`
-- `GET /api/documents`
-- `GET /api/documents/{document_id}`
 
-## Agent workflow contract (added as stable API layer)
+## Ключевые request/response формы
 
-- `POST /api/documents`
-  - Request: multipart form (`file`)
-  - Response:
-    ```json
-    {
-      "document_id": "string",
-      "filename": "string",
-      "status": "uploaded"
-    }
-    ```
+### `POST /api/documents`
 
-- `GET /api/documents/{document_id}/status`
-
-- `POST /api/documents/{document_id}/analyze`
-  - Runs full workflow:
-    `DocumentProcessingAgent -> RetrievalAgent -> LegalRiskAgent -> KeyTermsAgent -> LegalResearchAgent -> ReportAgent`
-  - Optional body:
-    ```json
-    { "legal_web_search_enabled": true }
-    ```
-  - If `legal_web_search_enabled` is `false`, `LegalResearchAgent` skips web search (faster analyze).
-
-- `GET /api/documents/{document_id}/report`
-
-- `POST /api/documents/{document_id}/ask`
-  - Body:
-    ```json
-    { "question": "string" }
-    ```
-  - Uses `DocumentQAAgent` (RAG over uploaded contract chunks only; **no web search**).
-  - Model: `OPENROUTER_MODEL_QA` with fallback `OPENROUTER_MODEL_FALLBACK`.
-  - Response:
-    ```json
-    {
-      "document_id": "string",
-      "question": "string",
-      "answer": "string",
-      "confidence": "low | medium | high | unknown",
-      "citations": [
-        {
-          "quote": "string",
-          "page": 1,
-          "chunk_id": "string"
-        }
-      ],
-      "disclaimer": "string"
-    }
-    ```
-
-- `GET /api/documents/{document_id}/legal-sources`
-  - Optional helper to fetch legal research results separately.
-
-## Legal research constraints
-
-- `LegalResearchAgent` is a mandatory step in `POST /api/documents/{document_id}/analyze`.
-- Uses OpenRouter server tool `openrouter:web_search` with domain filter:
-  - `consultant.ru`
-  - `garant.ru`
-  - `pravo.gov.ru`
-- Public web pages only; no paywall bypass; no login automation.
-- No claim of full access to Consultant Plus / Garant commercial databases.
-- Report may include:
-  - `legal_sources[]` (title, url, snippet, source_type, relevance)
-  - `warnings[]` (includes limitations text)
-  - `status=done_with_warnings` when sources are empty but analysis completed
-- Separate read endpoint: `GET /api/documents/{document_id}/legal-sources`
-
-### Example: run analyze (requires auth token)
-
-```bash
-curl -X POST "http://localhost:8000/api/documents/{document_id}/analyze" \
-  -H "Authorization: Bearer <token>"
-```
-
-### Example: document Q&A (RAG only, no web search)
-
-```bash
-curl -X POST "http://localhost:8000/api/documents/{document_id}/ask" \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d "{\"question\":\"Какие условия расторжения договора?\"}"
-```
-
-Notes:
-- Document must be processed/indexed first (`POST /api/process` or full `/analyze` workflow).
-- Answers are grounded in retrieved chunks of the uploaded file only.
-- Does not search external legal databases.
-
-## Page-aware evidence (chunks, report, Q&A)
-
-### Extraction
-
-| Format | `pages` shape | `page` on chunks |
-|--------|---------------|------------------|
-| PDF | `[{ "page": 1, "text": "..." }, ...]` (1-based) | Real page number |
-| DOCX | Single block `[{ "page": 1, "text": "..." }]` | Always `1` (no reliable page boundaries in MVP) |
-| OCR (PDF) | Per rendered page when `pdf2image` succeeds | Same as PDF page index |
-| OCR (images) | `[{ "page": 1, "text": "..." }]` | `1` |
-
-**DOCX limitation:** Word files do not expose stable print pages in this pipeline. Citations use `page: 1` or `null` in reports; treat page numbers as approximate for DOCX only.
-
-### Chunk record (internal + Chroma metadata)
+Response:
 
 ```json
 {
-  "chunk_id": "{document_id}_{index}",
-  "document_id": "uuid",
-  "text": "string",
-  "page": 1,
-  "chunk_index": 0
+  "document_id": "string",
+  "filename": "string",
+  "status": "uploaded"
 }
 ```
 
-Chroma stores `page` as `0` when unknown; retrieval maps `0` → `null`.
+### `POST /api/documents/{document_id}/analyze`
 
-### Retrieval result (`semantic_retrieval`)
+Request (optional):
 
 ```json
 {
-  "text": "string",
-  "page": 1,
-  "chunk_id": "uuid_0",
-  "score": 0.42,
-  "metadata": { "document_id": "uuid", "chunk_id": "uuid_0", "page": 1 }
+  "legal_web_search_enabled": true
 }
 ```
 
-### Report (`GET /api/documents/{id}/report`)
+Response: `OrchestrateResponse`.
 
-Risks and key terms include `quote` and `page`. `ReportAgent` fills missing `quote` from `explanation`/`value` and leaves `page` as `null` when unavailable.
-
-### Example: read legal sources
-
-```bash
-curl "http://localhost:8000/api/documents/{document_id}/legal-sources" \
-  -H "Authorization: Bearer <token>"
-```
+### `GET /api/documents/{document_id}/report`
 
 Response shape:
 
 ```json
 {
-  "document_id": "uuid",
+  "document_id": "string",
+  "status": "done | done_with_warnings | failed",
+  "summary": "string",
+  "overall_risk": "low | medium | high | unknown",
+  "risks": [],
+  "key_terms": [],
   "legal_sources": [],
-  "warnings": ["Legal web search provider is unavailable."]
+  "warnings": ["string"],
+  "disclaimer": "string",
+  "used_ocr": true,
+  "chunks_count": 0
 }
 ```
+
+### `POST /api/documents/{document_id}/ask`
+
+Request:
+
+```json
+{
+  "question": "Какие пункты требуют согласования с юристом?"
+}
+```
+
+Response:
+
+```json
+{
+  "document_id": "string",
+  "question": "string",
+  "answer": "string",
+  "confidence": "low | medium | high | unknown",
+  "citations": [
+    {
+      "quote": "string",
+      "page": 1,
+      "chunk_id": "string"
+    }
+  ],
+  "disclaimer": "string"
+}
+```
+
+### `GET /api/documents/{document_id}/legal-sources`
+
+Response:
+
+```json
+{
+  "document_id": "string",
+  "legal_sources": [],
+  "warnings": ["string"]
+}
+```
+
+## Статусы и предупреждения
+
+Канонические статусы отчета:
+
+- `done`
+- `done_with_warnings`
+- `failed`
+
+`warnings` всегда остаются в API-ответе. Префикс `INFO:` используется для информационных сообщений и не должен трактоваться как критическая ошибка.
+
+## Политика LegalResearch
+
+- Источники ограничены публичными страницами разрешенных доменов.
+- `legal_sources` отделены от `risks`/`key_terms`.
+- `trust_tier=model_reported` означает необходимость ручной проверки.
+
+## Ошибки AI provider
+
+Для провайдерных сбоев API возвращает нормализованные коды:
+
+- `provider_missing_key`
+- `provider_rate_limited`
+- `provider_auth_failed`
+- `provider_model_not_found`
+- `provider_timeout`
+- `provider_unavailable`
+- `provider_bad_response`
+- `provider_unknown_error`
+
+Error payload:
+
+```json
+{
+  "detail": "string",
+  "code": "provider_*",
+  "provider": "bothub | openrouter",
+  "retryable": true,
+  "legacy_code": "openrouter_* | null"
+}
+```
+
+## Важные ограничения
+
+- API не раскрывает внутренние server-side пути хранения файлов.
+- Сервис выполняет предварительный анализ и не является юридической консультацией.

@@ -1,4 +1,4 @@
-import re
+﻿import re
 from pathlib import Path
 
 from app.services.chunking_service import chunk_records_from_pages
@@ -15,7 +15,7 @@ def _clean_text(text: str) -> str:
 
 def process_document(document_id: str, file_path: str) -> dict:
     path = Path(file_path)
-    extraction_result = extract_pages_with_metadata(file_path)
+    extraction_result = extract_pages_with_metadata(file_path, document_id=document_id)
     pages = list(extraction_result.get("pages", []))
     warnings = list(extraction_result.get("warnings", []))
     used_ocr = bool(extraction_result.get("used_ocr", False))
@@ -27,7 +27,7 @@ def process_document(document_id: str, file_path: str) -> dict:
             ocr_text = run_ocr(file_path)
             pages = [{"page": 1, "text": ocr_text}] if ocr_text else []
         used_ocr = True
-        warnings.append("Использовано OCR извлечение. Качество может быть ниже.")
+        warnings.append("Использовано OCR-извлечение. Качество распознавания может быть ниже.")
 
     pages = [
         {

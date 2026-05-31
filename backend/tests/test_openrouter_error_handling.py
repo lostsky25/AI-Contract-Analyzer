@@ -194,7 +194,44 @@ def test_orchestrate_route_returns_structured_provider_error(
     payload = response.json()
     assert payload == {
         "detail": "OpenRouter rate limit exceeded.",
-        "code": "openrouter_rate_limited",
+        "code": "provider_rate_limited",
         "provider": "openrouter",
+        "retryable": True,
+        "legacy_code": "openrouter_rate_limited",
+    }
+
+
+def test_orchestrate_route_returns_canonical_provider_error_without_legacy_code(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    route_document: Document,
+) -> None:
+    def fake_get_document(_db, document_id: str, user_id: str | None = None):
+        if document_id == route_document.id and user_id == "test-user-id":
+            return route_document
+        return None
+
+    def fake_run(**_kwargs):
+        raise ProviderError(
+            provider="bothub",
+            code="provider_timeout",
+            message="Provider request timed out.",
+            status_code=504,
+            retryable=True,
+        )
+
+    monkeypatch.setattr("app.api.routes.get_document", fake_get_document)
+    monkeypatch.setattr("app.api.routes.orchestrator.run", fake_run)
+
+    response = client.post(
+        "/api/orchestrate",
+        json={"document_id": route_document.id, "legal_web_search_enabled": True},
+    )
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload == {
+        "detail": "Provider request timed out.",
+        "code": "provider_timeout",
+        "provider": "bothub",
         "retryable": True,
     }

@@ -47,7 +47,7 @@ export function RiskCard({ risk }: RiskCardProps) {
         </span>
       </div>
       <div className="risk-evidence">
-        <EvidenceQuote quote={risk.quote} page={risk.page} sourceLabel="Цитата" />
+        <EvidenceQuote quote={risk.quote} page={risk.page} sourceLabel="Цитата из договора" />
       </div>
     </article>
   );

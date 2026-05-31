@@ -35,32 +35,37 @@ export type OrchestrateRequest = {
 
 export type Risk = {
   title: string;
-  severity: "low" | "medium" | "high" | "critical" | "unknown";
+  severity: "low" | "medium" | "high" | "unknown";
   explanation: string;
-  quote?: string;
+  quote: string;
   page?: number | null;
+  chunk_id?: string | null;
 };
 
 export type KeyTerm = {
   title: string;
   value: string;
-  quote?: string;
+  explanation?: string;
+  quote: string;
   page?: number | null;
+  chunk_id?: string | null;
 };
 
 export type LegalSource = {
   title: string;
   url: string;
   snippet: string;
+  reason?: string;
   source_type: "consultant_plus" | "garant" | "pravo_gov" | "other_public_source";
   relevance: "low" | "medium" | "high" | "unknown";
+  trust_tier?: "grounded" | "model_reported";
 };
 
 export type ContractReport = {
   document_id: string;
   status: string;
   summary: string;
-  overall_risk: "low" | "medium" | "high" | "critical" | "unknown";
+  overall_risk: "low" | "medium" | "high" | "unknown";
   risks: Risk[];
   key_terms: KeyTerm[];
   legal_sources: LegalSource[];

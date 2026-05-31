@@ -10,7 +10,19 @@ SOURCE_TYPE_VALUES = {
     "other_public_source",
 }
 RELEVANCE_VALUES = {"low", "medium", "high", "unknown"}
-STATUS_VALUES = {"processing", "done", "failed", "done_with_warnings"}
+TRUST_TIER_VALUES = {"grounded", "model_reported"}
+CANONICAL_STATUS_VALUES = {
+    "uploaded",
+    "processing",
+    "processed",
+    "analyzing",
+    "done",
+    "done_with_warnings",
+    "failed",
+    "failed_processing",
+}
+LEGACY_STATUS_VALUES = {"analyzed", "indexed", "extracted", "ocr_completed", "empty_text"}
+STATUS_VALUES = CANONICAL_STATUS_VALUES | LEGACY_STATUS_VALUES
 OVERALL_RISK_VALUES = {"low", "medium", "high", "unknown"}
 
 
@@ -163,6 +175,7 @@ class ContractRisk(BaseModel):
     explanation: str
     quote: str
     page: int | None = None
+    chunk_id: str = ""
 
     @field_validator("severity", mode="before")
     @classmethod
@@ -174,16 +187,20 @@ class ContractRisk(BaseModel):
 class ContractKeyTerm(BaseModel):
     title: str
     value: str
+    explanation: str = ""
     quote: str
     page: int | None = None
+    chunk_id: str = ""
 
 
 class ContractLegalSource(BaseModel):
     title: str
     url: str
     snippet: str
+    reason: str = ""
     source_type: str = "other_public_source"
     relevance: str = "unknown"
+    trust_tier: str = "grounded"
 
     @field_validator("source_type", mode="before")
     @classmethod
@@ -196,6 +213,12 @@ class ContractLegalSource(BaseModel):
     def normalize_relevance(cls, value: object) -> str:
         normalized = str(value or "unknown").strip().lower()
         return normalized if normalized in RELEVANCE_VALUES else "unknown"
+
+    @field_validator("trust_tier", mode="before")
+    @classmethod
+    def normalize_trust_tier(cls, value: object) -> str:
+        normalized = str(value or "grounded").strip().lower()
+        return normalized if normalized in TRUST_TIER_VALUES else "grounded"
 
 
 class ContractReport(BaseModel):
@@ -259,4 +282,5 @@ class ProviderErrorResponse(BaseModel):
     code: str
     provider: str
     retryable: bool
+    legacy_code: str | None = None
 

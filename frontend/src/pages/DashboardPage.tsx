@@ -142,23 +142,6 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
   );
   const recentDocuments = useMemo(() => filteredDocuments.slice(0, 5), [filteredDocuments]);
 
-  const quotes = useMemo(() => {
-    if (!model.report) return [];
-    const fromRisks = model.report.risks.map((risk) => ({ quote: risk.quote ?? "", page: risk.page ?? null }));
-    const fromTerms = model.report.key_terms.map((term) => ({ quote: term.quote ?? "", page: term.page ?? null }));
-    return [...fromRisks, ...fromTerms].filter((item) => item.quote.trim());
-  }, [model.report]);
-
-  const uniquePagesCount = useMemo(() => {
-    const pages = new Set<number>();
-    for (const item of quotes) {
-      if (typeof item.page === "number") {
-        pages.add(item.page);
-      }
-    }
-    return pages.size;
-  }, [quotes]);
-
   const completion = useMemo(() => {
     if (model.report) return "Готово";
     if (model.analyzeState === "loading") return "Выполняется анализ";
@@ -485,17 +468,6 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
                     <strong>{model.report?.key_terms.length ?? 0}</strong>
                   </div>
                   <div className="summary-metric-card">
-                    <span className="summary-metric-icon metric-quotes" aria-hidden>
-                      <svg viewBox="0 0 24 24" role="presentation">
-                        <path d="M7.7 9.3A3.7 3.7 0 0 0 4 13v3.6c0 1.4 1.1 2.5 2.5 2.5h2.4c1.3 0 2.4-1.1 2.4-2.4v-2.6c0-1.2-1-2.2-2.2-2.2h-1c.3-1 .9-1.8 1.8-2.6.3-.2.3-.7 0-1L9 7.4a.8.8 0 0 0-1.3.1Zm8.6 0A3.7 3.7 0 0 0 12.6 13v3.6c0 1.4 1.1 2.5 2.5 2.5h2.4c1.3 0 2.4-1.1 2.4-2.4v-2.6c0-1.2-1-2.2-2.2-2.2h-1c.3-1 .9-1.8 1.8-2.6.3-.2.3-.7 0-1L17.7 7.4a.8.8 0 0 0-1.4.1Z" />
-                      </svg>
-                    </span>
-                    <p className="muted">Цитаты / страницы</p>
-                    <strong>
-                      {quotes.length} / {uniquePagesCount}
-                    </strong>
-                  </div>
-                  <div className="summary-metric-card">
                     <span className="summary-metric-icon metric-sources" aria-hidden>
                       <svg viewBox="0 0 24 24" role="presentation">
                         <path d="M12 3.2c4.8 0 8.8 3.9 8.8 8.8s-3.9 8.8-8.8 8.8S3.2 16.9 3.2 12s3.9-8.8 8.8-8.8Z" />
@@ -512,8 +484,8 @@ export function DashboardPage({ currentUsername, onLogout }: DashboardPageProps)
                 {!model.report ? (
                   <div className="report-empty-state">
                     <p className="muted report-empty-text">
-                      Запустите анализ, чтобы получить структурированный отчёт по рискам, ключевым условиям, цитатам и
-                      правовым источникам.
+                      Запустите анализ, чтобы получить структурированный отчёт по рискам, ключевым условиям и правовым
+                      источникам.
                     </p>
                     {model.analyzeState === "loading" ? (
                       <p className="muted report-loading-text">Анализ выполняется. Отчёт появится сразу после завершения.</p>

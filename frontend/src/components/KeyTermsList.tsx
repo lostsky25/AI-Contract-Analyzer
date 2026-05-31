@@ -23,7 +23,8 @@ export function KeyTermsList({ terms }: KeyTermsListProps) {
               ›
             </span>
           </div>
-          <EvidenceQuote quote={term.quote} page={term.page} sourceLabel="Цитата" />
+          {term.explanation ? <p className="term-explanation">{term.explanation}</p> : null}
+          <EvidenceQuote quote={term.quote} page={term.page} sourceLabel="Цитата из договора" />
         </article>
       ))}
     </div>

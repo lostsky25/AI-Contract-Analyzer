@@ -61,6 +61,7 @@ from app.services.text_extractor import extract_text
 from app.services.ocr_service import run_ocr
 from app.services.report_store import get_report
 from app.services.openrouter_service import ProviderError
+from app.services.provider_errors import get_generic_provider_code
 from app.models.db_models import User
 
 router = APIRouter()
@@ -79,33 +80,40 @@ def _get_owned_document_or_404(db: Session, document_id: str, current_user: User
 
 
 def _provider_http_status(error: ProviderError) -> int:
-    if error.code == "openrouter_rate_limited":
+    code = get_generic_provider_code(error.code)
+    if code == "provider_rate_limited":
         return status.HTTP_429_TOO_MANY_REQUESTS
-    if error.code in {
-        "openrouter_timeout",
-        "openrouter_unavailable",
-    }:
+    if code in {"provider_timeout", "provider_unavailable"}:
         return status.HTTP_503_SERVICE_UNAVAILABLE
-    if error.code in {
-        "openrouter_auth_failed",
-        "openrouter_missing_key",
-        "openrouter_model_not_found",
-        "openrouter_bad_response",
-        "openrouter_unknown_error",
+    if code in {
+        "provider_auth_failed",
+        "provider_missing_key",
+        "provider_model_not_found",
+        "provider_bad_response",
+        "provider_unknown_error",
     }:
         return status.HTTP_503_SERVICE_UNAVAILABLE
     return status.HTTP_503_SERVICE_UNAVAILABLE
 
 
 def _provider_error_response(error: ProviderError) -> JSONResponse:
+    code = get_generic_provider_code(error.code)
+    legacy_code = error.legacy_code
+    if not legacy_code and error.code.startswith("openrouter_"):
+        legacy_code = error.code
+
+    payload: dict[str, object] = {
+        "detail": error.message,
+        "code": code,
+        "provider": error.provider,
+        "retryable": error.retryable,
+    }
+    if legacy_code:
+        payload["legacy_code"] = legacy_code
+
     return JSONResponse(
         status_code=_provider_http_status(error),
-        content={
-            "detail": error.message,
-            "code": error.code,
-            "provider": error.provider,
-            "retryable": error.retryable,
-        },
+        content=payload,
     )
 
 
